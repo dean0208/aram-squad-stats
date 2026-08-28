@@ -165,7 +165,7 @@ export async function syncNewGames(): Promise<{ synced: number; skipped: number 
   // Fetch recent matches for all tracked players
   const matchSets = await Promise.all(
     TRACKED_PLAYERS.map((p) =>
-      fetchRecentMatches(p.puuid, 20).catch(() => [] as string[]),
+      fetchRecentMatches(p.puuid, 100).catch(() => [] as string[]),
     ),
   )
 

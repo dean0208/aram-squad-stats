@@ -377,9 +377,13 @@ export default function DashboardClient({
     return sorted[sorted.length - 1] ?? todayKST()
   }, [availableDates])
 
-  const [selectedDate, setSelectedDate] = useState<string>(defaultDate)
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    // compute inline so initial render already shows the right date
+    const dates = allGames.map((g) => toKSTDateString(g.played_at)).sort()
+    return dates[dates.length - 1] ?? todayKST()
+  })
 
-  // Update default when data loads
+  // Keep in sync if allGames changes (e.g. after sync)
   useEffect(() => {
     setSelectedDate(defaultDate)
   }, [defaultDate])
