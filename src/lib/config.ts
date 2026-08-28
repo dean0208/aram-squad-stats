@@ -1,22 +1,22 @@
 // Fixed player configuration
 export const TRACKED_PLAYERS = [
   {
-    puuid: 'ty6kwEB5XeaTnlYFnrzaoga5n2k2HVlTsMb_INWzWsOUNAyXGY6xemQcSXTFLcCWVhJ-2MgeAAXLmw',
+    puuid: 'fMM-QQxR_KvThTZ-4xaqn_XzyPLrzBKx8qL-6lyw1OfyabCpv8NWGYMt_v836xmLJRhO1mO55RXilg',
     gameName: 'Hoodville',
     tagLine: 'cityb',
   },
   {
-    puuid: 'S-fCtWgRYYQng5SMbXkpqkFtpLb9G09z8iHKvAWnDpWB6n64PhG0kij5ZxUlaANUQ1_Xg-FHUS6Ydg',
+    puuid: 'XqEwGu2HFUiWqO8AOrAPfCfKxSl1BzSLcFxV0HFfVan_YvQvfEdbfnXrVkfErFHtq27-la-U9e_ZgA',
     gameName: 'Interest Rate',
     tagLine: 'OC',
   },
   {
-    puuid: '-K-_p4PdtKq9J0UAki1Qks1J36heN4QryIMUadPXHPQ97_ilNqXVNPuaW6iyjscwlsUIvj8U_BTQDA',
+    puuid: 'Mx8gYVhZwzugCoBFQyoCfjESRpjTF6ZJN-8uTF1hqHwc9s9ke5rGTKnWFvfYGa6z8tAWnIxMdytYPg',
     gameName: 'Nunu and Lulu',
     tagLine: 'OC',
   },
   {
-    puuid: 'GTq3uwMxAnY5Fcti6DKKSMCMBz0Pu8BS3BHgN0V8JjyFnHiG1tLLP6orWeWeSjZJkStnFQoyWXrAXg',
+    puuid: 'ScCA2JAvEUDKOL83IF0jnELmmCoPIWfi6qhZ6h-sTR7V18ZFgt8y4XhHHny3j5MXdowQlgPcsLjy2Q',
     gameName: 'just won lotto',
     tagLine: 'OC',
   },
