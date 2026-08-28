@@ -121,6 +121,9 @@ export async function POST(request: NextRequest) {
         championName: p.championName || champNames[p.championId] || `Champion${p.championId}`,
       }))
 
+      // 변환된 tracked participants (Riot PUUID 기준)
+      const trackedParticipants = participants.filter((p) => TRACKED_PUUID_SET.has(p.puuid))
+
       // RiotParticipant 형태로 변환 (점수 계산용)
       const riotParts: RiotParticipant[] = participants.map((p) => ({
         puuid: p.puuid,
@@ -138,11 +141,11 @@ export async function POST(request: NextRequest) {
         goldEarned: p.goldEarned,
       }))
 
-      // 우리 팀 판별
+      // 우리 팀 판별 (Riot PUUID로 변환된 participants 기준)
       const teamCounts = new Map<number, number>()
-      for (const p of tracked) teamCounts.set(p.teamId, (teamCounts.get(p.teamId) ?? 0) + 1)
+      for (const p of trackedParticipants) teamCounts.set(p.teamId, (teamCounts.get(p.teamId) ?? 0) + 1)
       const ourTeamId = [...teamCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
-      const ourTeamWin = tracked.find((p) => p.teamId === ourTeamId)?.win ?? false
+      const ourTeamWin = trackedParticipants.find((p) => p.teamId === ourTeamId)?.win ?? false
 
       // game 삽입
       const { data: gameRow, error: gameErr } = await supabase

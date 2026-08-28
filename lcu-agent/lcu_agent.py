@@ -397,6 +397,14 @@ def main():
 
     print(f"  Mayhem 4인 게임: {len(games_payload)}경기")
 
+    # payload 샘플 출력 (디버그용)
+    if games_payload:
+        sample = games_payload[0]
+        print(f"\n  [payload 샘플] gameId: {sample['gameId']}")
+        for p in sample['participants']:
+            if p['gameName'] in TRACKED_NAMES:
+                print(f"    {p['gameName']} | puuid:{p['puuid'][:20]}... | {p['kills']}/{p['deaths']}/{p['assists']}")
+
     if not games_payload:
         print("  전송할 게임 없음.")
         return
@@ -429,7 +437,9 @@ def main():
             total_synced  += synced
             total_skipped += skipped
             total_errors  += errors
-            print(f"✓ synced:{synced} skipped:{skipped}")
+            print(f"✓ synced:{synced} skipped:{skipped} HTTP:{resp.status_code}")
+            if errors:
+                print(f"    errors: {errors[:3]}")
         except Exception as e:
             print(f"✗ {e}")
             total_errors.append(str(e))
