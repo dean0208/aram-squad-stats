@@ -55,7 +55,7 @@ def find_lockfile():  # -> Optional[Path]
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
 
-    # fallback: 일반적인 경로 탐색
+    # fallback: 일반적인 경로 탐색 (LeagueClient 우선, RiotClient 제외)
     common_paths = [
         Path("C:/Riot Games/League of Legends/lockfile"),
         Path("C:/Program Files/Riot Games/League of Legends/lockfile"),
@@ -103,13 +103,12 @@ def lcu_get(session: requests.Session, path: str):
 # ─── 데이터 수집 ──────────────────────────────────────────────────────────────
 
 def get_current_puuid(session: requests.Session) -> str:
-    # 여러 엔드포인트 시도 (버전마다 다름)
+    # LCU는 하이픈 형식 사용: lol-summoner, lol-login 등
     endpoints = [
-        '/lol/summoner/v1/current-summoner',
-        '/lol/chat/v1/me',
-        '/lol/login/v1/session',
-        '/lol/lobby/v2/lobby',
-        '/riotclient/user-info',
+        '/lol-summoner/v1/current-summoner',
+        '/lol-login/v1/session',
+        '/lol-chat/v1/me',
+        '/lol-lobby/v2/lobby',
     ]
     for ep in endpoints:
         try:
@@ -133,13 +132,12 @@ def get_current_puuid(session: requests.Session) -> str:
 def get_match_history(session: requests.Session, puuid: str, count: int = 200) -> list:
     """매치 히스토리 - LCU endpoint 시도 순서대로"""
     endpoints = [
-        f'/lol/match-history/v1/products/lol/{puuid}/matches?begIndex=0&endIndex={count}',
-        f'/lol/match-history/v3/matchlist/account/{puuid}?begIndex=0&endIndex={count}',
+        f'/lol-match-history/v1/products/lol/{puuid}/matches?begIndex=0&endIndex={count}',
+        f'/lol-match-history/v3/matchlist/account/{puuid}?begIndex=0&endIndex={count}',
     ]
     for ep in endpoints:
         try:
             data = lcu_get(session, ep)
-            # 응답 구조 정규화
             if isinstance(data, dict):
                 return data.get('games', {}).get('games', data.get('games', []))
             if isinstance(data, list):
@@ -220,8 +218,7 @@ def run_debug(session: requests.Session, puuid: str):
     # 1. /lol/login 확인
     print("[1] 현재 로그인 정보")
     try:
-        # summoner 엔드포인트 시도
-        for ep in ['/lol/summoner/v1/current-summoner', '/lol/login/v1/session']:
+        for ep in ['/lol-summoner/v1/current-summoner', '/lol-login/v1/session']:
             try:
                 me = lcu_get(session, ep)
                 if isinstance(me, dict) and me.get('puuid'):
@@ -288,6 +285,20 @@ def main():
 
     # 1. lockfile
     print("[1] lockfile 탐색...")
+    # 실행 중인 Riot/League 프로세스 먼저 출력
+    print("  실행 중인 관련 프로세스:")
+    found_league = False
+    for proc in psutil.process_iter(['name', 'pid']):
+        try:
+            name = proc.info['name'] or ''
+            if any(x in name.lower() for x in ['league', 'riot', 'lol']):
+                print(f"    {name} (pid={proc.info['pid']})")
+                if 'leagueclient' in name.lower() and 'ux' not in name.lower():
+                    found_league = True
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    if not found_league:
+        print("  ⚠ LeagueClient.exe가 안 보여요. 롤 클라이언트(로비 화면)까지 실행해주세요.")
     lf = find_lockfile()
     if not lf:
         print("  ✗ League Client가 실행 중이지 않습니다.")
