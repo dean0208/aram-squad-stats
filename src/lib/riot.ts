@@ -1,4 +1,4 @@
-import { RIOT_BASE, TRACKED_PUUIDS, TRACKED_PLAYERS } from './config'
+import { RIOT_BASE, TRACKED_PUUIDS, TRACKED_PLAYERS, DATA_START_DATE } from './config'
 import { createServerClient } from './supabase'
 
 const riotHeaders = () => ({
@@ -176,9 +176,9 @@ export async function syncNewGames(): Promise<{ synced: number; skipped: number 
     }
   }
 
-  // Only process matches with ≥2 tracked players
+  // Only process matches with all 4 tracked players
   const candidateMatches = [...matchParticipation.entries()]
-    .filter(([, players]) => players.size >= 2)
+    .filter(([, players]) => players.size === TRACKED_PLAYERS.length)
     .map(([matchId]) => matchId)
 
   // Skip already-stored matches
@@ -205,7 +205,11 @@ export async function syncNewGames(): Promise<{ synced: number; skipped: number 
         TRACKED_PUUIDS.has(p.puuid),
       )
 
-      if (trackedInMatch.length < 2) continue
+      if (trackedInMatch.length < TRACKED_PLAYERS.length) continue
+
+      // Skip games before DATA_START_DATE
+      const gameDate = new Date(info.gameStartTimestamp)
+      if (gameDate < DATA_START_DATE) continue
 
       // Determine our team (majority team of tracked players)
       const teamCounts = new Map<number, number>()
