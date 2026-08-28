@@ -8,6 +8,7 @@ import type { NicknameAward } from '@/lib/nicknames'
 import { calculateMedals } from '@/lib/medals'
 import { TRACKED_PLAYERS, DDRAGON_VERSION } from '@/lib/config'
 import { rankContributionChampions } from '@/lib/championStats'
+import { getGrowthStatus } from '@/lib/growth'
 import { selectMvp } from '@/lib/mvp'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -69,18 +70,17 @@ function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRo
     })),
   )
 
-  // 최근 5판 지표와 전체 평균
+  // 전체 평균 대비 최근 10판 성장세
   const avgContrib = entries.reduce((a, { r }) => a + r.contribution_score, 0) / total
   const avgDeath = entries.reduce((a, { r }) => a + r.deaths, 0) / total
-  const recent5 = entries.slice(0, Math.min(5, total))
-  const recent5AvgContrib = Math.round(
-    recent5.reduce((a, { r }) => a + r.contribution_score, 0) / recent5.length,
-  )
+  const recent10 = entries.slice(0, Math.min(10, total))
+  const recent10AvgContrib = recent10.reduce((a, { r }) => a + r.contribution_score, 0) / recent10.length
+  const growthStatus = getGrowthStatus(avgContrib, recent10AvgContrib)
 
   return {
     mostChamp, champWinRate, champCount: mostInfo.count, role,
     bestChamp, worstChamp,
-    avgContrib: Math.round(avgContrib), avgDeath, recent5AvgContrib,
+    avgContrib: Math.round(avgContrib), avgDeath, growthStatus,
     total,
   }
 }
@@ -98,7 +98,12 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
   )
   if (!stats) return null
 
-  const trendPositive = stats.recent5AvgContrib >= stats.avgContrib
+  const growthStatusUi = {
+    폼다죽: { icon: '📉', className: 'bg-red-950/70 text-red-300' },
+    아쉬워: { icon: '😅', className: 'bg-orange-950/70 text-orange-300' },
+    '좋은데?': { icon: '👍', className: 'bg-blue-950/70 text-blue-300' },
+    버스기사님: { icon: '🚌', className: 'bg-green-950/70 text-green-300' },
+  }[stats.growthStatus]
 
   return (
     <div className="bg-gray-800/60 rounded-2xl p-4 border border-gray-700 flex flex-col gap-3 h-full hover:border-purple-600/50 transition-colors">
@@ -154,8 +159,11 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
         <span className="text-xs px-2 py-0.5 rounded-full bg-gray-700 text-gray-300">
           {stats.role.emoji} {stats.role.label}
         </span>
-        <span className={`text-xs px-2 py-0.5 rounded-full ${trendPositive ? 'bg-green-900/60 text-green-300' : 'bg-gray-700 text-gray-400'}`}>
-          {trendPositive ? '📈' : '📉'} 최근5 평균 {stats.recent5AvgContrib}점
+        <span
+          className={`text-xs px-2 py-0.5 rounded-full ${growthStatusUi.className}`}
+          title="전체 게임 평균 기여도 대비 최근 10게임 성장세"
+        >
+          {growthStatusUi.icon} {stats.growthStatus}
         </span>
       </div>
 
