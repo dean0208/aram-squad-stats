@@ -106,18 +106,27 @@ def get_current_puuid(session: requests.Session) -> str:
     # 여러 엔드포인트 시도 (버전마다 다름)
     endpoints = [
         '/lol/summoner/v1/current-summoner',
+        '/lol/chat/v1/me',
         '/lol/login/v1/session',
         '/lol/lobby/v2/lobby',
+        '/riotclient/user-info',
     ]
     for ep in endpoints:
         try:
             data = lcu_get(session, ep)
             if isinstance(data, dict):
-                puuid = data.get('puuid') or data.get('localPlayer', {}).get('puuid', '')
+                puuid = (
+                    data.get('puuid') or
+                    data.get('localPlayer', {}).get('puuid', '') or
+                    ''
+                )
                 if puuid:
+                    print(f"  ✓ PUUID 확인 (endpoint: {ep})")
                     return puuid
-        except Exception:
-            continue
+                else:
+                    print(f"  - {ep} → 응답있음, puuid 없음. keys: {list(data.keys())[:8]}")
+        except Exception as e:
+            print(f"  - {ep} → {e}")
     raise RuntimeError("PUUID를 가져올 수 없습니다. 모든 엔드포인트 실패")
 
 
