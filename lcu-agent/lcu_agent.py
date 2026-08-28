@@ -25,7 +25,7 @@ from pathlib import Path
 SERVER_URL  = "https://aram-squad-stats.vercel.app/api/lcu-sync"
 LCU_SECRET  = os.environ.get("LCU_SYNC_SECRET", "")  # 환경변수 or 직접 입력
 QUEUE_ID    = 2400   # ARAM Mayhem
-FETCH_COUNT = 200    # 최근 N경기 조회
+FETCH_COUNT = 20     # 최근 N경기 조회 (LCU 타임아웃 방지)
 
 # gameName → (LCU puuid, Riot puuid)
 TRACKED_PLAYERS = {
@@ -100,7 +100,7 @@ def lcu_session(port: str, password: str) -> requests.Session:
 
 def lcu_get(session: requests.Session, path: str):
     url = session.__dict__['base_url'] + path
-    r = session.get(url, timeout=10)
+    r = session.get(url, timeout=30)
     r.raise_for_status()
     return r.json()
 
