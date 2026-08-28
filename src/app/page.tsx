@@ -97,7 +97,7 @@ export default async function HomePage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white">ARAM Squad Stats</h1>
+          <h1 className="text-3xl font-bold text-white">누가누가 잘했나😎</h1>
           <p className="text-gray-400 mt-1">OCE server • 4-stack ARAM tracker</p>
         </div>
         <SyncButton />
