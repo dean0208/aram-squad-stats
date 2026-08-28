@@ -1,4 +1,6 @@
 import { createServerClient } from '@/lib/supabase'
+import { computeNicknames } from '@/lib/nicknames'
+import type { Game } from '@/lib/types'
 import { NextRequest } from 'next/server'
 
 export async function GET(request: NextRequest) {
@@ -48,9 +50,12 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error
 
-    return Response.json(games)
+    const typedGames = (games ?? []) as unknown as Game[]
+    const nicknames = computeNicknames(typedGames)
+
+    return Response.json({ nicknames, gamesCount: typedGames.length })
   } catch (err) {
-    console.error('Games API error:', err)
+    console.error('Badges API error:', err)
     return Response.json(
       { error: err instanceof Error ? err.message : 'Unknown error' },
       { status: 500 },

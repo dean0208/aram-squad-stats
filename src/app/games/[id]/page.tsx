@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { createServerClient } from '@/lib/supabase'
 import { DDRAGON_VERSION } from '@/lib/config'
 import type { Game, GameResult } from '@/lib/types'
+import { calculateMedals } from '@/lib/medals'
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -106,6 +107,17 @@ export default async function GameDetailPage({
     (a, b) => b.contribution_score - a.contribution_score,
   )
   const mvpId = sortedResults[0]?.id
+
+  // Compute game-level medals
+  const medals = calculateMedals(typedGame.game_results)
+  // Build map: resultId -> medals won
+  const resultMedals: Record<string, typeof medals> = {}
+  for (const m of medals) {
+    for (const w of m.winners) {
+      if (!resultMedals[w.id]) resultMedals[w.id] = []
+      resultMedals[w.id].push(m)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -240,6 +252,38 @@ export default async function GameDetailPage({
           </table>
         </div>
       </div>
+
+      {/* Game Awards */}
+      {medals.length > 0 && (
+        <div className="bg-gray-800 rounded-2xl border border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-white mb-4">🏅 이번 판 수상자</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {medals.map(({ medal, winners }) => (
+              <div
+                key={medal.id}
+                className={`rounded-xl p-3 border ${
+                  medal.shame
+                    ? 'bg-gray-900 border-gray-600'
+                    : 'bg-gray-750 border-gray-600'
+                }`}
+              >
+                <div className="text-2xl mb-1">{medal.emoji}</div>
+                <div
+                  className={`text-xs font-bold mb-1 ${
+                    medal.shame ? 'text-gray-400' : 'text-gray-200'
+                  }`}
+                >
+                  {medal.name}
+                </div>
+                <div className="text-xs text-gray-300 font-medium">
+                  {winners.map((w) => w.players?.game_name ?? '?').join(', ')}
+                </div>
+                <div className="text-xs text-gray-500 mt-0.5">{medal.description}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Augments */}
       {sortedResults.some((r) => r.augment_ids?.length > 0) && (

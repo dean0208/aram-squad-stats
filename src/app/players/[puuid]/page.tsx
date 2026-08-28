@@ -3,7 +3,9 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createServerClient } from '@/lib/supabase'
 import { DDRAGON_VERSION } from '@/lib/config'
-import type { ChampionReport } from '@/lib/types'
+import type { ChampionReport, Game } from '@/lib/types'
+import { computeNicknames } from '@/lib/nicknames'
+import type { NicknameAward } from '@/lib/nicknames'
 
 function ChampionIcon({ name, size = 32 }: { name: string; size?: number }) {
   const safeName = name.replace(/[^a-zA-Z0-9]/g, '')
@@ -56,6 +58,50 @@ export default async function PlayerReportPage({
     `,
     )
     .eq('player_id', player.id)
+
+  // Fetch all games to compute all-squad nicknames
+  const { data: allGamesRaw } = await supabase
+    .from('games')
+    .select(
+      `
+      id,
+      match_id,
+      played_at,
+      duration_seconds,
+      our_team_win,
+      our_team_id,
+      game_results (
+        id,
+        champion_name,
+        champion_id,
+        kills,
+        deaths,
+        assists,
+        damage_dealt,
+        damage_taken,
+        healing,
+        gold_earned,
+        cc_score,
+        perf_score,
+        contribution_score,
+        augment_ids,
+        players (
+          id,
+          puuid,
+          game_name,
+          tag_line
+        )
+      )
+    `,
+    )
+    .order('played_at', { ascending: false })
+    .limit(500)
+
+  const allGames = (allGamesRaw ?? []) as unknown as Game[]
+  const allNicknames = computeNicknames(allGames)
+  const myNicknames: NicknameAward[] = allNicknames.filter(
+    (n) => n.winnerPuuid === decodedPuuid,
+  )
 
   // Group by champion
   const championMap = new Map<
@@ -171,6 +217,27 @@ export default async function PlayerReportPage({
           </div>
         </div>
       </div>
+
+      {/* Nickname Badges */}
+      {myNicknames.length > 0 && (
+        <div className="bg-gray-800 rounded-2xl border border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-white mb-4">🏛️ 나의 별명</h2>
+          <div className="flex flex-wrap gap-3">
+            {myNicknames.map((award) => (
+              <div
+                key={award.id}
+                className={`bg-gradient-to-br ${award.color} rounded-xl px-4 py-3 border ${award.borderColor} flex items-center gap-3`}
+              >
+                <span className="text-2xl">{award.emoji}</span>
+                <div>
+                  <div className={`text-sm font-bold ${award.textColor}`}>{award.name}</div>
+                  <div className="text-xs text-gray-300">{award.valueLabel}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Suspects Section */}
       {suspects.length > 0 && (
