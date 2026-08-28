@@ -407,7 +407,7 @@ def main():
         print("  set LCU_SYNC_SECRET=your-secret 후 재실행하세요.")
         sys.exit(1)
 
-    BATCH_SIZE = 10
+    BATCH_SIZE = 3
     total_synced = 0
     total_skipped = 0
     total_errors = []
