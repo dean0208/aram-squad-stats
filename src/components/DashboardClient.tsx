@@ -8,6 +8,7 @@ import type { NicknameAward } from '@/lib/nicknames'
 import { calculateMedals } from '@/lib/medals'
 import { TRACKED_PLAYERS, DDRAGON_VERSION } from '@/lib/config'
 import { rankContributionChampions } from '@/lib/championStats'
+import { selectMvp } from '@/lib/mvp'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -177,11 +178,9 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
 
 function MvpCard({ games }: { games: Game[] }) {
   if (!games.length) return null
-  let mvpResult: GameResult | null = null
-  for (const game of games)
-    for (const r of game.game_results)
-      if (r.players && (!mvpResult || r.contribution_score > mvpResult.contribution_score))
-        mvpResult = r
+  const mvpResult = selectMvp(
+    games.flatMap(game => game.game_results).filter(result => result.players),
+  )
   if (!mvpResult) return null
 
   return (
@@ -196,8 +195,8 @@ function MvpCard({ games }: { games: Game[] }) {
         </div>
       </div>
       <div className="text-right shrink-0">
-        <div className="text-2xl font-black text-amber-300">{mvpResult.contribution_score}</div>
-        <div className="text-xs text-amber-500">기여도</div>
+        <div className="text-2xl font-black text-amber-300">{mvpResult.perf_score.toFixed(1)}</div>
+        <div className="text-xs text-amber-500">실제 기여도 / 100</div>
       </div>
     </div>
   )
