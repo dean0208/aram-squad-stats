@@ -68,31 +68,18 @@ function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRo
     })),
   )
 
-  // Core stats per game
-  const avgDmg    = entries.reduce((a, { r }) => a + r.damage_dealt, 0) / total
-  const avgTaken  = entries.reduce((a, { r }) => a + r.damage_taken, 0) / total
-  const avgHeal   = entries.reduce((a, { r }) => a + r.healing, 0) / total
-  const avgCC     = entries.reduce((a, { r }) => a + r.cc_score, 0) / total
-  const avgAssist = entries.reduce((a, { r }) => a + r.assists, 0) / total
-  const avgDeath  = entries.reduce((a, { r }) => a + r.deaths, 0) / total
-  const avgContrib= entries.reduce((a, { r }) => a + r.contribution_score, 0) / total
-
-  // 1. 팀기여 점수 (0-100 normalized by team avg)
-  const teamScore = Math.round((avgAssist * 1.2 + avgCC / 10 + avgHeal / 200) / 10)
-
-  // 2. 생존 효율 = 기여도 / (데스 + 1)
-  const surviveEff = Math.round((avgContrib / (avgDeath + 1)) * 10) / 10
-
-  // 3. 성장 트렌드: 최근 20경기 vs 전체 평균
-  const recent = entries.slice(0, Math.min(20, total))
-  const recentAvg = recent.reduce((a, { r }) => a + r.contribution_score, 0) / recent.length
-  const trend = Math.round((recentAvg - avgContrib) * 10) / 10
+  // 최근 5판 지표와 전체 평균
+  const avgContrib = entries.reduce((a, { r }) => a + r.contribution_score, 0) / total
+  const avgDeath = entries.reduce((a, { r }) => a + r.deaths, 0) / total
+  const recent5 = entries.slice(0, Math.min(5, total))
+  const recent5AvgContrib = Math.round(
+    recent5.reduce((a, { r }) => a + r.contribution_score, 0) / recent5.length,
+  )
 
   return {
     mostChamp, champWinRate, champCount: mostInfo.count, role,
     bestChamp, worstChamp,
-    avgDmg, avgTaken, avgHeal, avgCC,
-    teamScore, surviveEff, trend,
+    avgContrib: Math.round(avgContrib), avgDeath, recent5AvgContrib,
     total,
   }
 }
@@ -110,7 +97,7 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
   )
   if (!stats) return null
 
-  const trendPositive = stats.trend > 0
+  const trendPositive = stats.recent5AvgContrib >= stats.avgContrib
 
   return (
     <div className="bg-gray-800/60 rounded-2xl p-4 border border-gray-700 flex flex-col gap-3 h-full hover:border-purple-600/50 transition-colors">
@@ -125,7 +112,7 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
         <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-yellow-900/40 bg-yellow-950/20 px-2 py-1.5">
           <ChampionIcon name={stats.mostChamp} size={32} />
           <div className="min-w-0">
-            <div className="text-[10px] leading-tight text-gray-500">모스트 챔피언</div>
+            <div className="text-[10px] leading-tight text-gray-500">모스트</div>
             <div className="truncate text-xs font-semibold text-yellow-400" title={stats.mostChamp}>{stats.mostChamp}</div>
           </div>
           <div className="text-right text-[10px] leading-tight text-gray-400">
@@ -138,7 +125,7 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
           <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-purple-900/40 bg-purple-950/20 px-2 py-1.5">
             <ChampionIcon name={stats.bestChamp.name} size={32} />
             <div className="min-w-0">
-              <div className="text-[10px] leading-tight text-gray-500">기여도 최고</div>
+              <div className="text-[10px] leading-tight text-gray-500">기여도 👍</div>
               <div className="truncate text-xs font-semibold text-purple-400" title={stats.bestChamp.name}>{stats.bestChamp.name}</div>
             </div>
             <div className="whitespace-nowrap text-right text-[10px] text-gray-400">
@@ -151,7 +138,7 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
           <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-red-900/40 bg-red-950/20 px-2 py-1.5">
             <ChampionIcon name={stats.worstChamp.name} size={32} />
             <div className="min-w-0">
-              <div className="text-[10px] leading-tight text-gray-500">기여도 최저</div>
+              <div className="text-[10px] leading-tight text-gray-500">기여도 👎</div>
               <div className="truncate text-xs font-semibold text-red-400" title={stats.worstChamp.name}>{stats.worstChamp.name}</div>
             </div>
             <div className="whitespace-nowrap text-right text-[10px] text-gray-400">
@@ -167,19 +154,19 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
           {stats.role.emoji} {stats.role.label}
         </span>
         <span className={`text-xs px-2 py-0.5 rounded-full ${trendPositive ? 'bg-green-900/60 text-green-300' : 'bg-gray-700 text-gray-400'}`}>
-          {trendPositive ? '📈' : '📊'} {trendPositive ? '+' : ''}{stats.trend}
+          {trendPositive ? '📈' : '📉'} 최근5 평균 {stats.recent5AvgContrib}점
         </span>
       </div>
 
       {/* Stats row */}
       <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mt-auto">
         <div className="flex justify-between">
-          <span className="text-gray-500">팀기여</span>
-          <span className="text-blue-400 font-semibold">{stats.teamScore}</span>
+          <span className="text-gray-500">평균 기여도</span>
+          <span className="text-blue-400 font-semibold">{stats.avgContrib}점</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-500">생존효율</span>
-          <span className="text-purple-400 font-semibold">{stats.surviveEff}</span>
+          <span className="text-gray-500">평균 데스</span>
+          <span className="text-purple-400 font-semibold">{stats.avgDeath.toFixed(1)}회</span>
         </div>
       </div>
     </div>
