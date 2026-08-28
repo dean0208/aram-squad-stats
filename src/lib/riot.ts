@@ -1,5 +1,6 @@
 import { RIOT_BASE, TRACKED_PUUIDS, TRACKED_PLAYERS, DATA_START_DATE } from './config'
 import { createServerClient } from './supabase'
+import { calculateFairScores } from './scoring'
 
 const riotHeaders = () => ({
   'X-Riot-Token': process.env.RIOT_API_KEY ?? '',
@@ -73,52 +74,23 @@ export async function fetchMatchDetail(matchId: string): Promise<RiotMatchDetail
 
 // ─── Score Calculation ────────────────────────────────────────────────────────
 
-/**
- * Calculate a performance score (0-100) for a participant relative to all
- * participants in the match (to normalise for different game paces).
- */
+/** Calculate a continuous 0-100 score using team-relative contributions. */
 export function calcPerfScore(
   participant: RiotParticipant,
   allParticipants: RiotParticipant[],
 ): number {
-  const sum = (fn: (p: RiotParticipant) => number) =>
-    allParticipants.reduce((a, p) => a + fn(p), 0)
-
-  const teamParticipants = allParticipants.filter((p) => p.teamId === participant.teamId)
-  const teamKda = teamParticipants.reduce(
-    (a, p) => a + p.kills + p.assists,
-    0,
-  )
-  const totalDmg = sum((p) => p.totalDamageDealtToChampions)
-  const totalTaken = sum((p) => p.totalDamageTaken)
-  const totalHeal = sum((p) => p.totalHeal)
-  const totalCC = sum((p) => p.totalTimeCCDealt)
-
-  const kdaScore =
-    teamKda > 0
-      ? ((participant.kills + participant.assists) / teamKda) * 30
-      : 0
-  const dmgScore = totalDmg > 0 ? (participant.totalDamageDealtToChampions / totalDmg) * 30 : 0
-  const takenScore = totalTaken > 0 ? (participant.totalDamageTaken / totalTaken) * 20 : 0
-  const healScore = totalHeal > 0 ? (participant.totalHeal / totalHeal) * 10 : 0
-  const ccScore = totalCC > 0 ? (participant.totalTimeCCDealt / totalCC) * 10 : 0
-
-  return Math.min(100, kdaScore + dmgScore + takenScore + healScore + ccScore)
+  return calculateFairScores(allParticipants).get(participant.puuid) ?? 0
 }
 
 /**
- * Contribution score ranks a player among the tracked players this game
- * and normalises 0-100 (rank 1 → 100, rank 4 → 0).
+ * Keep the existing ingestion API name, but store the actual score rather
+ * than converting the tracked-player ranking into 100/67/33/0.
  */
 export function calcContributionScore(
   puuid: string,
   trackedParticipants: { puuid: string; perf: number }[],
 ): number {
-  const sorted = [...trackedParticipants].sort((a, b) => b.perf - a.perf)
-  const rank = sorted.findIndex((p) => p.puuid === puuid) // 0-based
-  const n = sorted.length
-  if (n <= 1) return 100
-  return Math.round(((n - 1 - rank) / (n - 1)) * 100)
+  return trackedParticipants.find((p) => p.puuid === puuid)?.perf ?? 0
 }
 
 // ─── Augment extraction helper ────────────────────────────────────────────────
