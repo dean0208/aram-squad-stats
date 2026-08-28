@@ -8,6 +8,7 @@ import type { RiotParticipant } from '@/lib/riot'
 
 interface LcuParticipant {
   puuid: string
+  gameName?: string
   championId: number
   championName: string   // agent가 DDragon으로 변환해서 보냄, 없으면 ""
   teamId: number
@@ -97,6 +98,8 @@ export async function POST(request: NextRequest) {
     const existingSet = new Set((existing ?? []).map((g) => g.match_id))
 
     const TRACKED_PUUID_SET = new Set(TRACKED_PLAYERS.map((p) => p.puuid))
+    // gameName → Riot PUUID 매핑 (LCU puuid는 다른 포맷이라 gameName으로 조회)
+    const gameNameToPuuid = new Map(TRACKED_PLAYERS.map((p) => [p.gameName, p.puuid]))
 
     let synced = 0
     let skipped = 0
@@ -105,13 +108,16 @@ export async function POST(request: NextRequest) {
     for (const game of body.games) {
       if (existingSet.has(game.gameId)) { skipped++; continue }
 
-      // 4명 모두 있는지 확인
-      const tracked = game.participants.filter((p) => TRACKED_PUUID_SET.has(p.puuid))
+      // 4명 모두 있는지 gameName 기준으로 확인
+      const tracked = game.participants.filter((p) =>
+        gameNameToPuuid.has(p.gameName ?? '')
+      )
       if (tracked.length < TRACKED_PLAYERS.length) { skipped++; continue }
 
-      // champion name fallback
+      // LCU puuid → Riot puuid 변환 (gameName 경유)
       const participants = game.participants.map((p) => ({
         ...p,
+        puuid: gameNameToPuuid.get(p.gameName ?? '') ?? p.puuid,
         championName: p.championName || champNames[p.championId] || `Champion${p.championId}`,
       }))
 

@@ -27,11 +27,11 @@ LCU_SECRET  = os.environ.get("LCU_SYNC_SECRET", "")  # 환경변수 or 직접 �
 QUEUE_ID    = 2400   # ARAM Mayhem
 FETCH_COUNT = 200    # 최근 N경기 조회
 
-TRACKED_PUUIDS = {
-    "fMM-QQxR_KvThTZ-4xaqn_XzyPLrzBKx8qL-6lyw1OfyabCpv8NWGYMt_v836xmLJRhO1mO55RXilg",  # Hoodville
-    "XqEwGu2HFUiWqO8AOrAPfCfKxSl1BzSLcFxV0HFfVan_YvQvfEdbfnXrVkfErFHtq27-la-U9e_ZgA",  # Interest Rate
-    "Mx8gYVhZwzugCoBFQyoCfjESRpjTF6ZJN-8uTF1hqHwc9s9ke5rGTKnWFvfYGa6z8tAWnIxMdytYPg",  # Nunu and Lulu
-    "ScCA2JAvEUDKOL83IF0jnELmmCoPIWfi6qhZ6h-sTR7V18ZFgt8y4XhHHny3j5MXdowQlgPcsLjy2Q",  # just won lotto
+TRACKED_NAMES = {
+    "Hoodville",
+    "Interest Rate",
+    "Nunu and Lulu",
+    "just won lotto",
 }
 
 # ─── lockfile 읽기 ────────────────────────────────────────────────────────────
@@ -102,8 +102,8 @@ def lcu_get(session: requests.Session, path: str):
 
 # ─── 데이터 수집 ──────────────────────────────────────────────────────────────
 
-def get_current_puuid(session: requests.Session) -> str:
-    # LCU는 하이픈 형식 사용: lol-summoner, lol-login 등
+def get_current_account(session: requests.Session):
+    """현재 로그인 계정의 (lcu_puuid, gameName) 반환"""
     endpoints = [
         '/lol-summoner/v1/current-summoner',
         '/lol-login/v1/session',
@@ -114,19 +114,18 @@ def get_current_puuid(session: requests.Session) -> str:
         try:
             data = lcu_get(session, ep)
             if isinstance(data, dict):
-                puuid = (
-                    data.get('puuid') or
-                    data.get('localPlayer', {}).get('puuid', '') or
-                    ''
-                )
-                if puuid:
-                    print(f"  ✓ PUUID 확인 (endpoint: {ep})")
-                    return puuid
+                puuid = data.get('puuid', '')
+                name = data.get('gameName', data.get('displayName', data.get('name', '')))
+                if puuid and name:
+                    print(f"  ✓ endpoint: {ep}")
+                    return puuid, name
+                elif puuid:
+                    print(f"  - {ep} → puuid있음, gameName없음. keys: {list(data.keys())[:10]}")
                 else:
-                    print(f"  - {ep} → 응답있음, puuid 없음. keys: {list(data.keys())[:8]}")
+                    print(f"  - {ep} → 응답있음, puuid없음. keys: {list(data.keys())[:10]}")
         except Exception as e:
             print(f"  - {ep} → {e}")
-    raise RuntimeError("PUUID를 가져올 수 없습니다. 모든 엔드포인트 실패")
+    raise RuntimeError("계정 정보를 가져올 수 없습니다")
 
 
 def get_match_history(session: requests.Session, puuid: str, count: int = 200) -> list:
@@ -157,7 +156,7 @@ def normalize_participant(p: dict):  # -> Optional[dict]
     if not puuid:
         return None
 
-    stats = p.get('stats', p)  # stats 서브객체 or 루트
+    stats = p.get('stats', p)
 
     augments = []
     for i in range(1, 5):
@@ -167,6 +166,7 @@ def normalize_participant(p: dict):  # -> Optional[dict]
 
     return {
         'puuid':                        puuid,
+        'gameName':                     p.get('gameName', ''),
         'championId':                   int(p.get('championId', 0)),
         'championName':                 p.get('championName', ''),
         'teamId':                       int(stats.get('teamId', p.get('teamId', 0))),
@@ -311,19 +311,21 @@ def main():
     print("[2] LCU 연결...")
     session = lcu_session(lock['port'], lock['password'])
 
-    # 3. PUUID
+    # 3. 현재 계정 gameName 확인
     print("[3] 현재 계정 확인...")
     try:
-        puuid = get_current_puuid(session)
-        print(f"  puuid: {puuid[:25]}...")
+        puuid, game_name = get_current_account(session)
+        print(f"  gameName: {game_name}")
+        print(f"  puuid(LCU): {puuid[:25]}...")
     except Exception as e:
-        print(f"  ✗ 로그인 정보 조회 실패: {e}")
+        print(f"  ✗ {e}")
         sys.exit(1)
 
-    if puuid not in TRACKED_PUUIDS:
-        print(f"  ✗ 이 계정은 tracked 목록에 없습니다. Hoodville 계정으로 로그인하세요.")
+    if game_name not in TRACKED_NAMES:
+        print(f"  ✗ '{game_name}'은 tracked 목록에 없습니다.")
+        print(f"  tracked: {TRACKED_NAMES}")
         sys.exit(1)
-    print(f"  ✓ tracked 계정 확인")
+    print(f"  ✓ tracked 계정 확인 ({game_name})")
 
     # debug 모드
     if args.debug:
@@ -341,10 +343,11 @@ def main():
         norm = normalize_game(raw)
         if not norm:
             continue
-        # 4명 다 있는지
-        puuids_in_game = {p['puuid'] for p in norm['participants']}
-        if not TRACKED_PUUIDS.issubset(puuids_in_game):
-            print(f"  skip {norm['gameId']} (4명 미충족: {len(puuids_in_game & TRACKED_PUUIDS)}/4)")
+        # 4명 다 있는지 gameName 기준으로 확인
+        names_in_game = {p.get('gameName', '') for p in raw.get('participants', [])}
+        if not TRACKED_NAMES.issubset(names_in_game):
+            found = len(TRACKED_NAMES & names_in_game)
+            print(f"  skip {norm['gameId']} (4명 미충족: {found}/4 - 있음: {TRACKED_NAMES & names_in_game})")
             continue
         games_payload.append(norm)
 
