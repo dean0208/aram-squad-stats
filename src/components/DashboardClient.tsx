@@ -306,10 +306,8 @@ function DailyPerformance({ allGames, filteredGames, players }: {
     const todayAvg = todayResults.reduce((a, r) => a + r.contribution_score, 0) / todayResults.length
 
     const diff = todayAvg - baseline
-    const diffPct = Math.round((diff / baseline) * 100)
-
-    return { name: p.game_name, baseline: Math.round(baseline * 10) / 10, todayAvg: Math.round(todayAvg * 10) / 10, diff: Math.round(diff * 10) / 10, diffPct }
-  }).filter(Boolean) as { name: string; baseline: number; todayAvg: number; diff: number; diffPct: number }[]
+    return { name: p.game_name, diff }
+  }).filter(Boolean) as { name: string; diff: number }[]
 
   if (!stats.length) return null
 
@@ -320,70 +318,25 @@ function DailyPerformance({ allGames, filteredGames, players }: {
   return (
     <div className="bg-gray-800/60 rounded-2xl border border-gray-700 overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-700 flex items-center gap-2">
-        <span className="text-sm font-semibold text-gray-300">📊 오늘의 평균 대비 성과</span>
-        <span className="text-xs text-gray-500">평소 기여도 기준</span>
+      <div className="px-4 py-3 border-b border-gray-700">
+        <div className="text-sm font-semibold text-gray-300">📊 오늘의 평균 대비 성과</div>
+        <div className="text-xs text-gray-500 mt-0.5">전체 평균과 비교한 오늘의 상승·하락세</div>
       </div>
 
-      {/* Summary bar */}
-      <div className="grid grid-cols-2 border-b border-gray-700">
-        <div className="px-4 py-3 border-r border-gray-700">
-          <div className="text-xs text-gray-500 mb-1">오늘의 캐리</div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-green-400 text-lg font-bold">🔥</span>
-            <div>
-              <div className="text-sm font-bold text-green-400">{topCarry.name}</div>
-              <div className="text-xs text-gray-400">
-                평소 {topCarry.baseline} → 오늘 {topCarry.todayAvg}
-                <span className="ml-1 text-green-400 font-semibold">({topCarry.diff >= 0 ? '+' : ''}{topCarry.diff})</span>
-              </div>
-            </div>
-          </div>
+      {/* Two intuitive highlights, without score clutter */}
+      <div className="grid grid-cols-2 divide-x divide-gray-700">
+        <div className="p-4">
+          <div className="text-xs text-gray-500 mb-2">오늘의 캐리</div>
+          <div className="text-2xl mb-1">🔥</div>
+          <div className="text-sm font-bold text-green-400 truncate" title={topCarry.name}>{topCarry.name}</div>
+          <div className="text-xs text-green-300 mt-1">{topCarry.diff >= 0 ? '평소보다 상승세' : '오늘 가장 선방'}</div>
         </div>
-        <div className="px-4 py-3">
-          <div className="text-xs text-gray-500 mb-1">오늘의 발목</div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-red-400 text-lg font-bold">🧊</span>
-            <div>
-              <div className="text-sm font-bold text-red-400">{topAnchor.name}</div>
-              <div className="text-xs text-gray-400">
-                평소 {topAnchor.baseline} → 오늘 {topAnchor.todayAvg}
-                <span className="ml-1 text-red-400 font-semibold">({topAnchor.diff >= 0 ? '+' : ''}{topAnchor.diff})</span>
-              </div>
-            </div>
-          </div>
+        <div className="p-4">
+          <div className="text-xs text-gray-500 mb-2">오늘의 아쉬움</div>
+          <div className="text-2xl mb-1">🧊</div>
+          <div className="text-sm font-bold text-red-400 truncate" title={topAnchor.name}>{topAnchor.name}</div>
+          <div className="text-xs text-red-300 mt-1">{topAnchor.diff < 0 ? '평소보다 하락세' : '오늘은 조금 아쉬워요'}</div>
         </div>
-      </div>
-
-      {/* Per-player bars */}
-      <div className="px-4 py-3 space-y-2.5">
-        {sorted.map(p => {
-          const isPositive = p.diff >= 0
-          const barPct = Math.min(Math.abs(p.diffPct), 100)
-          return (
-            <div key={p.name}>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-gray-300 font-medium">{p.name}</span>
-                <span className={isPositive ? 'text-green-400 font-semibold' : 'text-red-400 font-semibold'}>
-                  {isPositive ? '+' : ''}{p.diff} ({isPositive ? '+' : ''}{p.diffPct}%)
-                </span>
-              </div>
-              {/* Bar: center = baseline, extends left (bad) or right (good) */}
-              <div className="relative h-1.5 bg-gray-700 rounded-full">
-                <div
-                  className={`absolute top-0 h-full rounded-full ${isPositive ? 'bg-green-500 left-1/2' : 'bg-red-500 right-1/2'}`}
-                  style={{ width: `${barPct / 2}%` }}
-                />
-                {/* Center line */}
-                <div className="absolute left-1/2 top-0 h-full w-px bg-gray-500" />
-              </div>
-              <div className="flex justify-between text-xs text-gray-600 mt-0.5">
-                <span>평소 {p.baseline}</span>
-                <span>오늘 {p.todayAvg}</span>
-              </div>
-            </div>
-          )
-        })}
       </div>
     </div>
   )
