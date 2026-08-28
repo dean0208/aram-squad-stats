@@ -27,7 +27,11 @@ export const TRACKED_PUUIDS = new Set(TRACKED_PLAYERS.map((p) => p.puuid))
 // Only collect games from this date onwards (KST 2026-08-28 00:00)
 export const DATA_START_DATE = new Date('2026-08-28T00:00:00+09:00')
 
-export const RIOT_ROUTING = 'asia'
+// Account API는 asia (OCE 포함 전 서버 지원)
+export const ACCOUNT_BASE = 'https://asia.api.riotgames.com'
+
+// Match API는 sea (OCE 서버 라우팅)
+export const RIOT_ROUTING = 'sea'
 export const RIOT_BASE = `https://${RIOT_ROUTING}.api.riotgames.com`
 export const DDRAGON_VERSION = '14.24.1'
 export const DDRAGON_BASE = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}`
