@@ -167,15 +167,15 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
         </span>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mt-auto">
-        <div className="flex justify-between">
-          <span className="text-gray-500">평균 기여도</span>
-          <span className="text-blue-400 font-semibold">{stats.avgContrib}점</span>
+      {/* Stats row: stack on narrow iPhone screens to prevent text collisions */}
+      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-1.5 mt-auto">
+        <div className="min-w-0 rounded-lg bg-gray-900/50 px-2 py-1.5">
+          <div className="text-[10px] leading-tight text-gray-500">평균 기여도</div>
+          <div className="text-sm font-semibold text-blue-400">{stats.avgContrib}점</div>
         </div>
-        <div className="flex justify-between">
-          <span className="text-gray-500">평균 데스</span>
-          <span className="text-purple-400 font-semibold">{stats.avgDeath.toFixed(1)}회</span>
+        <div className="min-w-0 rounded-lg bg-gray-900/50 px-2 py-1.5">
+          <div className="text-[10px] leading-tight text-gray-500">평균 데스</div>
+          <div className="text-sm font-semibold text-purple-400">{stats.avgDeath.toFixed(1)}회</div>
         </div>
       </div>
     </div>
