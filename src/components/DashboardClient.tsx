@@ -43,35 +43,40 @@ function ChampionIcon({ name, size = 32 }: { name: string; size?: number }) {
 
 function inferPlayerProfile(puuid: string, allGames: Game[]) {
   const results = allGames.flatMap(g =>
-    g.game_results.filter(r => r.players?.puuid === puuid)
+    g.game_results.filter(r => r.players?.puuid === puuid).map(r => ({ r, win: g.our_team_win }))
   )
   if (!results.length) return null
 
   // Most played champ
-  const champCount = new Map<string, number>()
-  for (const r of results) champCount.set(r.champion_name, (champCount.get(r.champion_name) ?? 0) + 1)
-  const mostPlayed = [...champCount.entries()].sort((a, b) => b[1] - a[1])[0]
+  const champData = new Map<string, { count: number; wins: number }>()
+  for (const { r, win } of results) {
+    const prev = champData.get(r.champion_name) ?? { count: 0, wins: 0 }
+    champData.set(r.champion_name, { count: prev.count + 1, wins: prev.wins + (win ? 1 : 0) })
+  }
+  const [mostPlayed, mostData] = [...champData.entries()].sort((a, b) => b[1].count - a[1].count)[0]
+  const champWinRate = Math.round((mostData.wins / mostData.count) * 100)
 
-  // Play style
+  // Play style — normalize by game count to avoid total inflation
   const total = results.length
-  const avgDmg = results.reduce((a, r) => a + r.damage_dealt, 0) / total
-  const avgTaken = results.reduce((a, r) => a + r.damage_taken, 0) / total
-  const avgHeal = results.reduce((a, r) => a + r.healing, 0) / total
-  const avgCC = results.reduce((a, r) => a + r.cc_score, 0) / total
+  const avgDmg    = results.reduce((a, { r }) => a + r.damage_dealt, 0) / total
+  const avgTaken  = results.reduce((a, { r }) => a + r.damage_taken, 0) / total
+  const avgHeal   = results.reduce((a, { r }) => a + r.healing, 0) / total
+  const avgCC     = results.reduce((a, { r }) => a + r.cc_score, 0) / total
 
-  let type = '올라운더'
-  let typeEmoji = '⚡'
-  if (avgHeal > 3000) { type = '힐러형'; typeEmoji = '💊' }
-  else if (avgTaken > avgDmg * 1.3) { type = '탱커형'; typeEmoji = '🛡️' }
-  else if (avgCC > 100) { type = 'CC형'; typeEmoji = '🌀' }
-  else if (avgDmg > 20000) { type = '딜러형'; typeEmoji = '⚔️' }
+  // 힐러: 힐이 딜보다 현저히 높은 경우
+  let type = '올라운더'; let typeEmoji = '⚡'
+  if (avgHeal > avgDmg * 0.6 && avgHeal > 5000) { type = '힐러형';  typeEmoji = '💊' }
+  else if (avgTaken > avgDmg * 1.5)              { type = '탱커형';  typeEmoji = '🛡️' }
+  else if (avgCC > 150)                           { type = 'CC형';    typeEmoji = '🌀' }
+  else if (avgDmg > 18000)                        { type = '딜러형';  typeEmoji = '⚔️' }
 
-  const wins = allGames.filter(g =>
-    g.game_results.some(r => r.players?.puuid === puuid) && g.our_team_win
-  ).length
-  const winRate = Math.round((wins / total) * 100)
-
-  return { mostPlayed: mostPlayed?.[0] ?? '', mostPlayedCount: mostPlayed?.[1] ?? 0, type, typeEmoji, total, winRate }
+  return {
+    mostPlayed,
+    champCount: mostData.count,
+    champWinRate,
+    type,
+    typeEmoji,
+  }
 }
 
 // ─── Fixed Player Card (all-time) ────────────────────────────────────────────
@@ -95,7 +100,7 @@ function PlayerProfileCard({ player, allGames }: { player: PlayerSummary; allGam
         <div>
           <div className="text-xs text-gray-400">모스트</div>
           <div className="text-sm font-semibold text-yellow-400">{profile.mostPlayed}</div>
-          <div className="text-xs text-gray-500">{profile.mostPlayedCount}판</div>
+          <div className="text-xs text-gray-500">{profile.champCount}판</div>
         </div>
       </div>
 
@@ -104,11 +109,8 @@ function PlayerProfileCard({ player, allGames }: { player: PlayerSummary; allGam
         <span className="text-xs px-2 py-0.5 rounded-full bg-gray-700 text-gray-300">
           {profile.typeEmoji} {profile.type}
         </span>
-        <span className={`text-xs px-2 py-0.5 rounded-full ${profile.winRate >= 50 ? 'bg-green-900/60 text-green-300' : 'bg-red-900/60 text-red-300'}`}>
-          승률 {profile.winRate}%
-        </span>
-        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-700 text-gray-400">
-          {profile.total}판
+        <span className={`text-xs px-2 py-0.5 rounded-full ${profile.champWinRate >= 50 ? 'bg-green-900/60 text-green-300' : 'bg-red-900/60 text-red-300'}`}>
+          승률 {profile.champWinRate}%
         </span>
       </div>
     </div>
