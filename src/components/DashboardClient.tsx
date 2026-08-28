@@ -44,15 +44,27 @@ function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRo
 
   const total = entries.length
 
-  // Most played champ
-  const champData = new Map<string, { count: number; wins: number }>()
+  // Most played champ + best contribution champ
+  const champData = new Map<string, { count: number; wins: number; totalContrib: number }>()
   for (const { r, win } of entries) {
-    const prev = champData.get(r.champion_name) ?? { count: 0, wins: 0 }
-    champData.set(r.champion_name, { count: prev.count + 1, wins: prev.wins + (win ? 1 : 0) })
+    const prev = champData.get(r.champion_name) ?? { count: 0, wins: 0, totalContrib: 0 }
+    champData.set(r.champion_name, {
+      count: prev.count + 1,
+      wins: prev.wins + (win ? 1 : 0),
+      totalContrib: prev.totalContrib + r.contribution_score,
+    })
   }
   const [mostChamp, mostInfo] = [...champData.entries()].sort((a, b) => b[1].count - a[1].count)[0]
   const champWinRate = Math.round((mostInfo.wins / mostInfo.count) * 100)
   const role = champRoles[mostChamp] ?? { label: '올라운더', emoji: '⚡' }
+
+  // Best avg contribution champ (최소 3판 이상)
+  const bestContribChamp = [...champData.entries()]
+    .filter(([, d]) => d.count >= 3)
+    .sort((a, b) => b[1].totalContrib / b[1].count - a[1].totalContrib / a[1].count)[0]
+  const bestChamp = bestContribChamp
+    ? { name: bestContribChamp[0], avgContrib: Math.round(bestContribChamp[1].totalContrib / bestContribChamp[1].count) }
+    : null
 
   // Core stats per game
   const avgDmg    = entries.reduce((a, { r }) => a + r.damage_dealt, 0) / total
@@ -76,6 +88,7 @@ function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRo
 
   return {
     mostChamp, champWinRate, champCount: mostInfo.count, role,
+    bestChamp,
     avgDmg, avgTaken, avgHeal, avgCC,
     teamScore, surviveEff, trend,
     total,
@@ -105,14 +118,28 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
         <div className="text-xs text-gray-500">#{player.tag_line}</div>
       </div>
 
-      {/* Most champ */}
-      <div className="flex items-center gap-2">
-        <ChampionIcon name={stats.mostChamp} size={36} />
-        <div>
-          <div className="text-xs text-gray-400">모스트</div>
-          <div className="text-sm font-semibold text-yellow-400 leading-tight">{stats.mostChamp}</div>
-          <div className="text-xs text-gray-500">{stats.champCount}판 · {stats.champWinRate}%</div>
+      {/* Most champ + Best contrib champ */}
+      <div className="flex gap-2">
+        {/* 모스트 */}
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <ChampionIcon name={stats.mostChamp} size={32} />
+          <div className="min-w-0">
+            <div className="text-xs text-gray-500">모스트</div>
+            <div className="text-xs font-semibold text-yellow-400 truncate">{stats.mostChamp}</div>
+            <div className="text-xs text-gray-500">{stats.champCount}판·{stats.champWinRate}%</div>
+          </div>
         </div>
+        {/* 기여도 최고 챔피언 */}
+        {stats.bestChamp && stats.bestChamp.name !== stats.mostChamp && (
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            <ChampionIcon name={stats.bestChamp.name} size={32} />
+            <div className="min-w-0">
+              <div className="text-xs text-gray-500">기여도 1위</div>
+              <div className="text-xs font-semibold text-purple-400 truncate">{stats.bestChamp.name}</div>
+              <div className="text-xs text-gray-500">평균 {stats.bestChamp.avgContrib}점</div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Role tag */}
@@ -241,7 +268,113 @@ function GameRow({ game }: { game: Game }) {
   )
 }
 
-// ─── Date Navigator ───────────────────────────────────────────────────────────
+// ─── Daily Performance vs Baseline ───────────────────────────────────────────
+
+function DailyPerformance({ allGames, filteredGames, players }: {
+  allGames: Game[]
+  filteredGames: Game[]
+  players: PlayerSummary[]
+}) {
+  if (!filteredGames.length) return null
+
+  const stats = players.map(p => {
+    // 전체 평균 기여도
+    const allResults = allGames.flatMap(g =>
+      g.game_results.filter(r => r.players?.puuid === p.puuid)
+    )
+    if (!allResults.length) return null
+    const baseline = allResults.reduce((a, r) => a + r.contribution_score, 0) / allResults.length
+
+    // 오늘 평균 기여도
+    const todayResults = filteredGames.flatMap(g =>
+      g.game_results.filter(r => r.players?.puuid === p.puuid)
+    )
+    if (!todayResults.length) return null
+    const todayAvg = todayResults.reduce((a, r) => a + r.contribution_score, 0) / todayResults.length
+
+    const diff = todayAvg - baseline
+    const diffPct = Math.round((diff / baseline) * 100)
+
+    return { name: p.game_name, baseline: Math.round(baseline * 10) / 10, todayAvg: Math.round(todayAvg * 10) / 10, diff: Math.round(diff * 10) / 10, diffPct }
+  }).filter(Boolean) as { name: string; baseline: number; todayAvg: number; diff: number; diffPct: number }[]
+
+  if (!stats.length) return null
+
+  const sorted = [...stats].sort((a, b) => b.diff - a.diff)
+  const topCarry = sorted[0]
+  const topAnchor = sorted[sorted.length - 1]
+
+  return (
+    <div className="bg-gray-800/60 rounded-2xl border border-gray-700 overflow-hidden">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-gray-700 flex items-center gap-2">
+        <span className="text-sm font-semibold text-gray-300">📊 오늘의 평균 대비 성과</span>
+        <span className="text-xs text-gray-500">평소 기여도 기준</span>
+      </div>
+
+      {/* Summary bar */}
+      <div className="grid grid-cols-2 border-b border-gray-700">
+        <div className="px-4 py-3 border-r border-gray-700">
+          <div className="text-xs text-gray-500 mb-1">오늘의 캐리</div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-green-400 text-lg font-bold">🔥</span>
+            <div>
+              <div className="text-sm font-bold text-green-400">{topCarry.name}</div>
+              <div className="text-xs text-gray-400">
+                평소 {topCarry.baseline} → 오늘 {topCarry.todayAvg}
+                <span className="ml-1 text-green-400 font-semibold">({topCarry.diff >= 0 ? '+' : ''}{topCarry.diff})</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="px-4 py-3">
+          <div className="text-xs text-gray-500 mb-1">오늘의 발목</div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-red-400 text-lg font-bold">🧊</span>
+            <div>
+              <div className="text-sm font-bold text-red-400">{topAnchor.name}</div>
+              <div className="text-xs text-gray-400">
+                평소 {topAnchor.baseline} → 오늘 {topAnchor.todayAvg}
+                <span className="ml-1 text-red-400 font-semibold">({topAnchor.diff >= 0 ? '+' : ''}{topAnchor.diff})</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Per-player bars */}
+      <div className="px-4 py-3 space-y-2.5">
+        {sorted.map(p => {
+          const isPositive = p.diff >= 0
+          const barPct = Math.min(Math.abs(p.diffPct), 100)
+          return (
+            <div key={p.name}>
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-gray-300 font-medium">{p.name}</span>
+                <span className={isPositive ? 'text-green-400 font-semibold' : 'text-red-400 font-semibold'}>
+                  {isPositive ? '+' : ''}{p.diff} ({isPositive ? '+' : ''}{p.diffPct}%)
+                </span>
+              </div>
+              {/* Bar: center = baseline, extends left (bad) or right (good) */}
+              <div className="relative h-1.5 bg-gray-700 rounded-full">
+                <div
+                  className={`absolute top-0 h-full rounded-full ${isPositive ? 'bg-green-500 left-1/2' : 'bg-red-500 right-1/2'}`}
+                  style={{ width: `${barPct / 2}%` }}
+                />
+                {/* Center line */}
+                <div className="absolute left-1/2 top-0 h-full w-px bg-gray-500" />
+              </div>
+              <div className="flex justify-between text-xs text-gray-600 mt-0.5">
+                <span>평소 {p.baseline}</span>
+                <span>오늘 {p.todayAvg}</span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 function DateNavigator({ selectedDate, availableDates, onChange }: {
   selectedDate: string; availableDates: Set<string>; onChange: (d: string) => void
@@ -414,6 +547,9 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
       {/* ── 날짜별 콘텐츠 ── */}
       <div key={animKey} className="space-y-4" style={{ animation: 'fadeSlideIn 0.25s ease-out' }}>
         {filteredGames.length > 0 && <MvpCard games={filteredGames} />}
+        {filteredGames.length > 0 && (
+          <DailyPerformance allGames={allGames} filteredGames={filteredGames} players={orderedPlayers} />
+        )}
         <section>
           <div className="flex items-center gap-2 mb-3">
             <h2 className="text-base font-semibold text-gray-300">당일 게임</h2>
