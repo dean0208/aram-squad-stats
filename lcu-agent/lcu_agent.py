@@ -27,12 +27,16 @@ LCU_SECRET  = os.environ.get("LCU_SYNC_SECRET", "")  # 환경변수 or 직접 �
 QUEUE_ID    = 2400   # ARAM Mayhem
 FETCH_COUNT = 200    # 최근 N경기 조회
 
-TRACKED_NAMES = {
-    "Hoodville",
-    "Interest Rate",
-    "Nunu and Lulu",
-    "just won lotto",
+# gameName → (LCU puuid, Riot puuid)
+TRACKED_PLAYERS = {
+    "Hoodville":     ("ea1d50c7-d4dd-56fd-be40-c663777c8af2", "fMM-QQxR_KvThTZ-4xaqn_XzyPLrzBKx8qL-6lyw1OfyabCpv8NWGYMt_v836xmLJRhO1mO55RXilg"),
+    "Interest Rate": ("322c77e2-d392-53d2-bef9-4179b94f99f6", "XqEwGu2HFUiWqO8AOrAPfCfKxSl1BzSLcFxV0HFfVan_YvQvfEdbfnXrVkfErFHtq27-la-U9e_ZgA"),
+    "Nunu and Lulu": ("698e63c8-3061-5e08-833f-04c661202c8d", "Mx8gYVhZwzugCoBFQyoCfjESRpjTF6ZJN-8uTF1hqHwc9s9ke5rGTKnWFvfYGa6z8tAWnIxMdytYPg"),
+    "just won lotto":("348d1a1c-9935-5b19-8d7f-60284f8c8511", "ScCA2JAvEUDKOL83IF0jnELmmCoPIWfi6qhZ6h-sTR7V18ZFgt8y4XhHHny3j5MXdowQlgPcsLjy2Q"),
 }
+TRACKED_NAMES    = set(TRACKED_PLAYERS.keys())
+LCU_TO_RIOT_PUUID = {v[0]: v[1] for v in TRACKED_PLAYERS.values()}
+LCU_PUUID_SET    = set(LCU_TO_RIOT_PUUID.keys())
 
 # ─── lockfile 읽기 ────────────────────────────────────────────────────────────
 
@@ -162,64 +166,57 @@ def get_game_detail(session: requests.Session, game_id: int) -> dict:
     return {}
 
 
-def normalize_participant(p: dict):  # -> Optional[dict]
-    """LCU participant → 서버 payload 형식으로 변환"""
-    puuid = (
-        p.get('puuid') or
-        p.get('playerToken') or
-        ''
-    )
-    if not puuid:
-        return None
+def normalize_game_detail(raw: dict) -> dict:
+    """game detail (10명 전체) → 서버 payload 형식"""
+    queue = int(raw.get('queueId', -1))
 
-    stats = p.get('stats', p)
-
-    augments = []
-    for i in range(1, 5):
-        v = stats.get(f'playerAugment{i}') or stats.get(f'augment{i}')
-        if v and int(v) > 0:
-            augments.append(int(v))
-
-    return {
-        'puuid':                        puuid,
-        'gameName':                     p.get('gameName', ''),
-        'championId':                   int(p.get('championId', 0)),
-        'championName':                 p.get('championName', ''),
-        'teamId':                       int(stats.get('teamId', p.get('teamId', 0))),
-        'win':                          bool(stats.get('win', False)),
-        'kills':                        int(stats.get('kills', 0)),
-        'deaths':                       int(stats.get('deaths', 0)),
-        'assists':                      int(stats.get('assists', 0)),
-        'totalDamageDealtToChampions':  int(stats.get('totalDamageDealtToChampions', 0)),
-        'totalDamageTaken':             int(stats.get('totalDamageTaken', 0)),
-        'totalHeal':                    int(stats.get('totalHeal', 0)),
-        'goldEarned':                   int(stats.get('goldEarned', 0)),
-        'totalTimeCCDealt':             int(stats.get('totalTimeCCDealt', 0)),
-        'augments':                     augments,
-    }
-
-
-def normalize_game(raw: dict):  # -> Optional[dict]
-    """LCU game → 서버 payload 형식"""
-    queue = int(raw.get('queueId', raw.get('queue', {}).get('id', -1)))
-    if queue != QUEUE_ID:
-        return None
-
-    # gameId 조합
-    game_id_raw = str(raw.get('gameId', ''))
-    game_id = game_id_raw if game_id_raw.startswith('OC1_') else f'OC1_{game_id_raw}'
+    # participantId → gameName/LCU puuid 매핑
+    pid_to_player = {}
+    for ident in raw.get('participantIdentities', []):
+        pid = ident['participantId']
+        player = ident.get('player', {})
+        pid_to_player[pid] = {
+            'gameName': player.get('gameName', '').strip(),
+            'lcu_puuid': player.get('puuid', ''),
+        }
 
     participants = []
     for p in raw.get('participants', []):
-        n = normalize_participant(p)
-        if n:
-            participants.append(n)
+        pid = p['participantId']
+        player_info = pid_to_player.get(pid, {})
+        game_name = player_info.get('gameName', '')
+        lcu_puuid = player_info.get('lcu_puuid', '')
 
-    if not participants:
-        return None
+        # Riot PUUID로 변환 (tracked 플레이어만)
+        riot_puuid = LCU_TO_RIOT_PUUID.get(lcu_puuid, lcu_puuid)
+
+        stats = p.get('stats', {})
+        augments = []
+        for i in range(1, 5):
+            v = stats.get(f'playerAugment{i}') or stats.get(f'augment{i}')
+            if v and int(v) > 0:
+                augments.append(int(v))
+
+        participants.append({
+            'puuid':                       riot_puuid,
+            'gameName':                    game_name,
+            'championId':                  int(p.get('championId', 0)),
+            'championName':                '',  # 서버에서 DDragon으로 채움
+            'teamId':                      int(stats.get('teamId', p.get('teamId', 0))),
+            'win':                         bool(stats.get('win', False)),
+            'kills':                       int(stats.get('kills', 0)),
+            'deaths':                      int(stats.get('deaths', 0)),
+            'assists':                     int(stats.get('assists', 0)),
+            'totalDamageDealtToChampions': int(stats.get('totalDamageDealtToChampions', 0)),
+            'totalDamageTaken':            int(stats.get('totalDamageTaken', 0)),
+            'totalHeal':                   int(stats.get('totalHeal', 0)),
+            'goldEarned':                  int(stats.get('goldEarned', 0)),
+            'totalTimeCCDealt':            int(stats.get('totalTimeCCDealt', 0)),
+            'augments':                    augments,
+        })
 
     return {
-        'gameId':       game_id,
+        'gameId':       f'OC1_{raw["gameId"]}',
         'queueId':      queue,
         'gameCreation': int(raw.get('gameCreation', 0)),
         'gameDuration': int(raw.get('gameDuration', 0)),
@@ -371,19 +368,32 @@ def main():
     raw_games = get_match_history(session, puuid, FETCH_COUNT)
     print(f"  전체 {len(raw_games)}경기")
 
-    # 5. Mayhem 필터 + 정규화
+    # 5. Mayhem 필터 → game detail 조회 → 4인 확인 → payload 구성
     games_payload = []
-    for raw in raw_games:
-        norm = normalize_game(raw)
-        if not norm:
+    mayhem_games = [g for g in raw_games
+                    if int(g.get('queueId', g.get('queue', {}).get('id', -1))) == QUEUE_ID]
+    print(f"  Mayhem 경기: {len(mayhem_games)}개")
+
+    for raw in mayhem_games:
+        game_id = raw.get('gameId')
+        detail = get_game_detail(session, game_id)
+        if not detail:
+            print(f"  skip OC1_{game_id} (game detail 조회 실패)")
             continue
-        # 4명 다 있는지 gameName 기준으로 확인
-        names_in_game = {p.get('gameName', '') for p in raw.get('participants', [])}
-        if not TRACKED_NAMES.issubset(names_in_game):
-            found = len(TRACKED_NAMES & names_in_game)
-            print(f"  skip {norm['gameId']} (4명 미충족: {found}/4 - 있음: {TRACKED_NAMES & names_in_game})")
+
+        # 4명 다 있는지 LCU puuid 기준 확인
+        lcu_puuids_in_game = {
+            ident['player']['puuid']
+            for ident in detail.get('participantIdentities', [])
+        }
+        if not LCU_PUUID_SET.issubset(lcu_puuids_in_game):
+            found = len(LCU_PUUID_SET & lcu_puuids_in_game)
+            print(f"  skip OC1_{game_id} (4명 미충족: {found}/4)")
             continue
+
+        norm = normalize_game_detail(detail)
         games_payload.append(norm)
+        print(f"  ✓ OC1_{game_id} 포함")
 
     print(f"  Mayhem 4인 게임: {len(games_payload)}경기")
 
