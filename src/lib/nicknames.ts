@@ -126,16 +126,7 @@ const NICKNAME_DEFS: NicknameDefinition[] = [
     formatValue: (s) => `총 ${s.totalAssists}어시스트`,
     direction: 'highest',
   },
-  {
-    id: 'goldhands',
-    emoji: '💰',
-    name: '황금손',
-    description: '누적 골드 획득 1위',
-    colorKey: 'yellow',
-    getValue: (s) => s.totalGoldEarned,
-    formatValue: (s) => `총 ${(s.totalGoldEarned / 1000).toFixed(0)}k 골드`,
-    direction: 'highest',
-  },
+
   {
     id: 'ccmaster',
     emoji: '🌀',

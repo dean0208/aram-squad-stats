@@ -7,6 +7,7 @@ import type { Game, GameResult } from '@/lib/types'
 import type { NicknameAward } from '@/lib/nicknames'
 import { calculateMedals } from '@/lib/medals'
 import { TRACKED_PLAYERS, DDRAGON_VERSION } from '@/lib/config'
+import { rankContributionChampions } from '@/lib/championStats'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -58,13 +59,14 @@ function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRo
   const champWinRate = Math.round((mostInfo.wins / mostInfo.count) * 100)
   const role = champRoles[mostChamp] ?? { label: '올라운더', emoji: '⚡' }
 
-  // Best avg contribution champ (최소 3판 이상)
-  const bestContribChamp = [...champData.entries()]
-    .filter(([, d]) => d.count >= 3)
-    .sort((a, b) => b[1].totalContrib / b[1].count - a[1].totalContrib / a[1].count)[0]
-  const bestChamp = bestContribChamp
-    ? { name: bestContribChamp[0], avgContrib: Math.round(bestContribChamp[1].totalContrib / bestContribChamp[1].count) }
-    : null
+  // Best/worst avg contribution champs (최소 3판 이상)
+  const { best: bestChamp, worst: worstChamp } = rankContributionChampions(
+    [...champData.entries()].map(([name, data]) => ({
+      name,
+      count: data.count,
+      totalContribution: data.totalContrib,
+    })),
+  )
 
   // Core stats per game
   const avgDmg    = entries.reduce((a, { r }) => a + r.damage_dealt, 0) / total
@@ -88,7 +90,7 @@ function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRo
 
   return {
     mostChamp, champWinRate, champCount: mostInfo.count, role,
-    bestChamp,
+    bestChamp, worstChamp,
     avgDmg, avgTaken, avgHeal, avgCC,
     teamScore, surviveEff, trend,
     total,
@@ -118,25 +120,42 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
         <div className="text-xs text-gray-500">#{player.tag_line}</div>
       </div>
 
-      {/* Most champ + Best contrib champ */}
-      <div className="flex gap-2">
-        {/* 모스트 */}
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+      {/* Champion highlights: stacked rows stay readable in narrow cards */}
+      <div className="space-y-1.5">
+        <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-yellow-900/40 bg-yellow-950/20 px-2 py-1.5">
           <ChampionIcon name={stats.mostChamp} size={32} />
           <div className="min-w-0">
-            <div className="text-xs text-gray-500">모스트</div>
-            <div className="text-xs font-semibold text-yellow-400 truncate">{stats.mostChamp}</div>
-            <div className="text-xs text-gray-500">{stats.champCount}판·{stats.champWinRate}%</div>
+            <div className="text-[10px] leading-tight text-gray-500">모스트 챔피언</div>
+            <div className="truncate text-xs font-semibold text-yellow-400" title={stats.mostChamp}>{stats.mostChamp}</div>
+          </div>
+          <div className="text-right text-[10px] leading-tight text-gray-400">
+            <div>{stats.champCount}판</div>
+            <div className="font-semibold text-yellow-300">승률 {stats.champWinRate}%</div>
           </div>
         </div>
-        {/* 기여도 최고 챔피언 */}
-        {stats.bestChamp && stats.bestChamp.name !== stats.mostChamp && (
-          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+
+        {stats.bestChamp && (
+          <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-purple-900/40 bg-purple-950/20 px-2 py-1.5">
             <ChampionIcon name={stats.bestChamp.name} size={32} />
             <div className="min-w-0">
-              <div className="text-xs text-gray-500">기여도 1위</div>
-              <div className="text-xs font-semibold text-purple-400 truncate">{stats.bestChamp.name}</div>
-              <div className="text-xs text-gray-500">평균 {stats.bestChamp.avgContrib}점</div>
+              <div className="text-[10px] leading-tight text-gray-500">기여도 최고</div>
+              <div className="truncate text-xs font-semibold text-purple-400" title={stats.bestChamp.name}>{stats.bestChamp.name}</div>
+            </div>
+            <div className="whitespace-nowrap text-right text-[10px] text-gray-400">
+              평균 <span className="font-semibold text-purple-300">{stats.bestChamp.avgContribution}점</span>
+            </div>
+          </div>
+        )}
+
+        {stats.worstChamp && (
+          <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-red-900/40 bg-red-950/20 px-2 py-1.5">
+            <ChampionIcon name={stats.worstChamp.name} size={32} />
+            <div className="min-w-0">
+              <div className="text-[10px] leading-tight text-gray-500">기여도 최저</div>
+              <div className="truncate text-xs font-semibold text-red-400" title={stats.worstChamp.name}>{stats.worstChamp.name}</div>
+            </div>
+            <div className="whitespace-nowrap text-right text-[10px] text-gray-400">
+              평균 <span className="font-semibold text-red-300">{stats.worstChamp.avgContribution}점</span>
             </div>
           </div>
         )}
