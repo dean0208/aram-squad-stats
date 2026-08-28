@@ -22,7 +22,8 @@ from pathlib import Path
 
 # ─── 설정 ────────────────────────────────────────────────────────────────────
 
-SERVER_URL  = "https://aram-squad-stats.vercel.app/api/lcu-sync"
+SERVER_URL      = "https://aram-squad-stats.vercel.app/api/lcu-sync"
+LAST_SYNC_URL   = "https://aram-squad-stats.vercel.app/api/last-sync"
 LCU_SECRET  = os.environ.get("LCU_SYNC_SECRET", "")  # 환경변수 or 직접 입력
 QUEUE_ID    = 2400   # ARAM Mayhem
 FETCH_COUNT = 20     # 최근 N경기 조회 (LCU 타임아웃 방지)
@@ -363,16 +364,38 @@ def main():
         run_debug(session, puuid)
         return
 
-    # 4. 매치 히스토리
-    print(f"[4] 매치 히스토리 조회 (최근 {FETCH_COUNT}경기)...")
+    # 4. 마지막 저장 시점 조회
+    print("[4] 마지막 저장 시점 확인...")
+    last_game_creation = 0
+    try:
+        r = requests.get(LAST_SYNC_URL, timeout=10)
+        data = r.json()
+        if data.get('last_played_at'):
+            from datetime import datetime, timezone
+            dt = datetime.fromisoformat(data['last_played_at'].replace('Z', '+00:00'))
+            last_game_creation = int(dt.timestamp() * 1000)
+            print(f"  마지막 저장: {data['last_played_at'][:10]} ({data['last_match_id']})")
+        else:
+            print("  저장된 게임 없음 → 전체 조회")
+    except Exception as e:
+        print(f"  확인 실패 ({e}) → 전체 조회")
+
+    # 5. 매치 히스토리
+    print(f"[5] 매치 히스토리 조회 (최근 {FETCH_COUNT}경기)...")
     raw_games = get_match_history(session, puuid, FETCH_COUNT)
     print(f"  전체 {len(raw_games)}경기")
 
-    # 5. Mayhem 필터 → game detail 조회 → 4인 확인 → payload 구성
+    # 6. Mayhem 필터 → 마지막 저장 시점 이후 → game detail → 4인 확인
     games_payload = []
     mayhem_games = [g for g in raw_games
                     if int(g.get('queueId', g.get('queue', {}).get('id', -1))) == QUEUE_ID]
-    print(f"  Mayhem 경기: {len(mayhem_games)}개")
+    # 마지막 저장 시점 이후 게임만
+    if last_game_creation > 0:
+        new_games = [g for g in mayhem_games if int(g.get('gameCreation', 0)) > last_game_creation]
+        print(f"  Mayhem 전체:{len(mayhem_games)}개 → 새 게임:{len(new_games)}개 (마지막 저장 이후)")
+        mayhem_games = new_games
+    else:
+        print(f"  Mayhem 경기: {len(mayhem_games)}개")
 
     for raw in mayhem_games:
         game_id = raw.get('gameId')

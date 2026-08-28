@@ -6,61 +6,325 @@ import Image from 'next/image'
 import type { Game, GameResult } from '@/lib/types'
 import type { NicknameAward } from '@/lib/nicknames'
 import { calculateMedals } from '@/lib/medals'
-import { DDRAGON_VERSION } from '@/lib/config'
+import { TRACKED_PLAYERS, DDRAGON_VERSION } from '@/lib/config'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${m}:${s.toString().padStart(2, '0')}`
+function formatDuration(s: number) {
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
-function toKSTDateString(iso: string): string {
-  // Returns "YYYY-MM-DD" in KST
-  const d = new Date(iso)
-  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+function toKSTDateString(iso: string) {
+  const kst = new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000)
   return kst.toISOString().slice(0, 10)
 }
 
-function todayKST(): string {
+function todayKST() {
   return toKSTDateString(new Date().toISOString())
 }
 
-function formatDisplayDate(ymd: string): string {
+function formatDisplayDate(ymd: string) {
   const [y, m, d] = ymd.split('-')
   return `${y}년 ${parseInt(m)}월 ${parseInt(d)}일`
 }
 
-function ChampionIcon({ name, size = 28 }: { name: string; size?: number }) {
-  const safeName = name.replace(/[^a-zA-Z0-9]/g, '')
+function ChampionIcon({ name, size = 32 }: { name: string; size?: number }) {
+  const safe = name.replace(/[^a-zA-Z0-9]/g, '')
   return (
     <Image
-      src={`https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${safeName}.png`}
-      alt={name}
-      width={size}
-      height={size}
-      className="rounded"
-      unoptimized
+      src={`https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${safe}.png`}
+      alt={name} width={size} height={size}
+      className="rounded-md" unoptimized
     />
   )
 }
 
-// ─── Badge Leaderboard ────────────────────────────────────────────────────────
+// ─── Player profile type inference ───────────────────────────────────────────
+
+function inferPlayerProfile(puuid: string, allGames: Game[]) {
+  const results = allGames.flatMap(g =>
+    g.game_results.filter(r => r.players?.puuid === puuid)
+  )
+  if (!results.length) return null
+
+  // Most played champ
+  const champCount = new Map<string, number>()
+  for (const r of results) champCount.set(r.champion_name, (champCount.get(r.champion_name) ?? 0) + 1)
+  const mostPlayed = [...champCount.entries()].sort((a, b) => b[1] - a[1])[0]
+
+  // Play style
+  const total = results.length
+  const avgDmg = results.reduce((a, r) => a + r.damage_dealt, 0) / total
+  const avgTaken = results.reduce((a, r) => a + r.damage_taken, 0) / total
+  const avgHeal = results.reduce((a, r) => a + r.healing, 0) / total
+  const avgCC = results.reduce((a, r) => a + r.cc_score, 0) / total
+
+  let type = '올라운더'
+  let typeEmoji = '⚡'
+  if (avgHeal > 3000) { type = '힐러형'; typeEmoji = '💊' }
+  else if (avgTaken > avgDmg * 1.3) { type = '탱커형'; typeEmoji = '🛡️' }
+  else if (avgCC > 100) { type = 'CC형'; typeEmoji = '🌀' }
+  else if (avgDmg > 20000) { type = '딜러형'; typeEmoji = '⚔️' }
+
+  const wins = allGames.filter(g =>
+    g.game_results.some(r => r.players?.puuid === puuid) && g.our_team_win
+  ).length
+  const winRate = Math.round((wins / total) * 100)
+
+  return { mostPlayed: mostPlayed?.[0] ?? '', mostPlayedCount: mostPlayed?.[1] ?? 0, type, typeEmoji, total, winRate }
+}
+
+// ─── Fixed Player Card (all-time) ────────────────────────────────────────────
+
+interface PlayerSummary { id: string; puuid: string; game_name: string; tag_line: string }
+
+function PlayerProfileCard({ player, allGames }: { player: PlayerSummary; allGames: Game[] }) {
+  const profile = useMemo(() => inferPlayerProfile(player.puuid, allGames), [player.puuid, allGames])
+  if (!profile) return null
+
+  return (
+    <div className="bg-gray-800/60 rounded-2xl p-4 border border-gray-700 flex flex-col gap-3">
+      <div>
+        <div className="font-bold text-white text-base leading-tight">{player.game_name}</div>
+        <div className="text-xs text-gray-500">#{player.tag_line}</div>
+      </div>
+
+      {/* Champion icon + name */}
+      <div className="flex items-center gap-2">
+        <ChampionIcon name={profile.mostPlayed} size={36} />
+        <div>
+          <div className="text-xs text-gray-400">모스트</div>
+          <div className="text-sm font-semibold text-yellow-400">{profile.mostPlayed}</div>
+          <div className="text-xs text-gray-500">{profile.mostPlayedCount}판</div>
+        </div>
+      </div>
+
+      {/* Tags */}
+      <div className="flex flex-wrap gap-1">
+        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-700 text-gray-300">
+          {profile.typeEmoji} {profile.type}
+        </span>
+        <span className={`text-xs px-2 py-0.5 rounded-full ${profile.winRate >= 50 ? 'bg-green-900/60 text-green-300' : 'bg-red-900/60 text-red-300'}`}>
+          승률 {profile.winRate}%
+        </span>
+        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-700 text-gray-400">
+          {profile.total}판
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ─── MVP Card ─────────────────────────────────────────────────────────────────
+
+function MvpCard({ games }: { games: Game[] }) {
+  if (!games.length) return null
+
+  // Find best contribution_score across all results today
+  let mvpResult: GameResult | null = null
+  let mvpGame: Game | null = null
+
+  for (const game of games) {
+    for (const r of game.game_results) {
+      if (!r.players) continue
+      if (!mvpResult || r.contribution_score > mvpResult.contribution_score) {
+        mvpResult = r
+        mvpGame = game
+      }
+    }
+  }
+
+  if (!mvpResult || !mvpGame) return null
+
+  return (
+    <div className="bg-gradient-to-r from-amber-950 to-yellow-950 border border-amber-700 rounded-2xl p-4 flex items-center gap-4">
+      <div className="text-3xl">👑</div>
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <ChampionIcon name={mvpResult.champion_name} size={44} />
+        <div className="min-w-0">
+          <div className="text-xs text-amber-400 font-semibold uppercase tracking-wider">오늘의 MVP</div>
+          <div className="text-white font-bold text-lg leading-tight">{mvpResult.players?.game_name}</div>
+          <div className="text-sm text-amber-300">{mvpResult.champion_name} · {mvpResult.kills}/{mvpResult.deaths}/{mvpResult.assists}</div>
+        </div>
+      </div>
+      <div className="text-right shrink-0">
+        <div className="text-2xl font-black text-amber-300">{mvpResult.contribution_score}</div>
+        <div className="text-xs text-amber-500">기여도</div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Collapsible Game Row ──────────────────────────────────────────────────────
+
+function GameRow({ game }: { game: Game }) {
+  const [open, setOpen] = useState(false)
+  const medals = useMemo(() => calculateMedals(game.game_results), [game])
+
+  const resultMedals: Record<string, typeof medals> = {}
+  for (const m of medals) {
+    for (const w of m.winners) {
+      if (!resultMedals[w.id]) resultMedals[w.id] = []
+      resultMedals[w.id].push(m)
+    }
+  }
+
+  const sorted = [...game.game_results]
+    .filter((r: GameResult) => r.players)
+    .sort((a: GameResult, b: GameResult) => b.contribution_score - a.contribution_score)
+
+  const wins = game.our_team_win
+  const mvp = sorted[0]
+
+  return (
+    <div className={`rounded-xl border transition-all overflow-hidden ${wins ? 'border-green-800/60' : 'border-red-900/60'}`}>
+      {/* Summary row — always visible */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-3 p-3 sm:p-4 text-left hover:bg-white/5 transition-colors"
+      >
+        {/* WIN/LOSS */}
+        <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${wins ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
+          {wins ? 'WIN' : 'LOSS'}
+        </span>
+
+        {/* Duration */}
+        <span className="text-gray-500 text-xs shrink-0">{formatDuration(game.duration_seconds)}</span>
+
+        {/* MVP preview */}
+        {mvp && (
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <ChampionIcon name={mvp.champion_name} size={24} />
+            <span className="text-sm text-gray-300 truncate">
+              <span className="text-purple-400 font-semibold">{mvp.players?.game_name}</span>
+              <span className="text-gray-500 ml-1">{mvp.kills}/{mvp.deaths}/{mvp.assists}</span>
+            </span>
+            {resultMedals[mvp.id]?.slice(0, 2).map(({ medal }) => (
+              <span key={medal.id} className="text-sm">{medal.emoji}</span>
+            ))}
+          </div>
+        )}
+
+        {/* Chevron */}
+        <span className={`shrink-0 text-gray-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>
+          ▾
+        </span>
+      </button>
+
+      {/* Detail — collapsible */}
+      {open && (
+        <Link href={`/games/${game.id}`} className="block border-t border-gray-700/50 p-3 sm:p-4 hover:bg-white/5 transition-colors">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {sorted.map((result: GameResult) => {
+              const myMedals = resultMedals[result.id] ?? []
+              return (
+                <div key={result.id} className="flex items-center gap-2">
+                  <ChampionIcon name={result.champion_name} size={28} />
+                  <div className="min-w-0">
+                    <div className="text-xs text-gray-300 font-medium truncate">{result.players?.game_name}</div>
+                    <div className="text-xs text-gray-500">{result.kills}/{result.deaths}/{result.assists}</div>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className="text-xs font-bold text-purple-400">{result.contribution_score}</span>
+                      {myMedals.slice(0, 3).map(({ medal }) => (
+                        <span key={medal.id} className="text-xs">{medal.emoji}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </Link>
+      )}
+    </div>
+  )
+}
+
+// ─── Date Navigator ───────────────────────────────────────────────────────────
+
+function DateNavigator({ selectedDate, availableDates, onChange }: {
+  selectedDate: string
+  availableDates: Set<string>
+  onChange: (d: string) => void
+}) {
+  const sorted = useMemo(() => [...availableDates].sort(), [availableDates])
+  const idx = sorted.indexOf(selectedDate)
+  const pickerRef = useRef<HTMLInputElement>(null)
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => idx > 0 && onChange(sorted[idx - 1])}
+        disabled={idx <= 0}
+        className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-lg"
+      >‹</button>
+
+      <div className="relative">
+        <button
+          onClick={() => setTimeout(() => pickerRef.current?.showPicker?.(), 0)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-800 border border-gray-700 hover:border-purple-500 text-white font-medium text-sm transition-all"
+        >
+          <span>📅</span>
+          <span>{formatDisplayDate(selectedDate)}</span>
+        </button>
+        <input
+          ref={pickerRef} type="date" value={selectedDate}
+          onChange={e => e.target.value && onChange(e.target.value)}
+          className="absolute inset-0 opacity-0 cursor-pointer"
+        />
+      </div>
+
+      <button
+        onClick={() => idx < sorted.length - 1 && onChange(sorted[idx + 1])}
+        disabled={idx >= sorted.length - 1}
+        className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-lg"
+      >›</button>
+
+      {idx >= 0 && (
+        <span className="text-xs text-gray-500 hidden sm:block">
+          {idx + 1} / {sorted.length}일
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ─── Hall of Fame ─────────────────────────────────────────────────────────────
+
+function HallOfFame({ nicknames }: { nicknames: NicknameAward[] }) {
+  if (!nicknames.length) return (
+    <p className="text-gray-500 text-center py-6 text-sm">게임을 더 싱크해주세요.</p>
+  )
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
+      {nicknames.map(award => (
+        <div key={award.id} className={`bg-gradient-to-br ${award.color} rounded-xl p-3 border ${award.borderColor}`}>
+          <div className="text-2xl mb-1">{award.emoji}</div>
+          <div className={`text-xs font-bold ${award.textColor}`}>{award.name}</div>
+          <div className="text-xs text-gray-400 mb-1 leading-tight">{award.description}</div>
+          <div className="text-white font-semibold text-sm">{award.winner}</div>
+          <div className="text-xs text-gray-300">{award.valueLabel}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Badge Table ──────────────────────────────────────────────────────────────
 
 const BADGE_DEFS = [
-  { id: 'mvp',     emoji: '👑', name: 'MVP' },
-  { id: 'dealer',  emoji: '⚔️',  name: '딜장인' },
-  { id: 'gold',    emoji: '💰', name: '골드왕' },
-  { id: 'healer',  emoji: '💊', name: '힐봇' },
-  { id: 'tank',    emoji: '🛡️', name: '인간방패' },
-  { id: 'killer',  emoji: '🎯', name: '킬머신' },
-  { id: 'assist',  emoji: '🤝', name: '어시왕' },
-  { id: 'death',   emoji: '💀', name: '죽어줘' },
+  { id: 'mvp', emoji: '👑', name: 'MVP' },
+  { id: 'dealer', emoji: '⚔️', name: '딜장인' },
+  { id: 'gold', emoji: '💰', name: '골드왕' },
+  { id: 'healer', emoji: '💊', name: '힐봇' },
+  { id: 'tank', emoji: '🛡️', name: '인간방패' },
+  { id: 'killer', emoji: '🎯', name: '킬머신' },
+  { id: 'assist', emoji: '🤝', name: '어시왕' },
+  { id: 'death', emoji: '💀', name: '죽어줘' },
   { id: 'passive', emoji: '🐔', name: '꽁꽁이' },
 ]
 
-function buildBadgeLeaderboard(games: Game[]): Record<string, Record<string, number>> {
+function buildBadgeCounts(games: Game[]) {
   const counts: Record<string, Record<string, number>> = {}
   for (const game of games) {
     const medals = calculateMedals(game.game_results)
@@ -75,175 +339,32 @@ function buildBadgeLeaderboard(games: Game[]): Record<string, Record<string, num
   return counts
 }
 
-// ─── PlayerCard ────────────────────────────────────────────────────────────
-
-interface PlayerSummary {
-  id: string
-  puuid: string
-  game_name: string
-  tag_line: string
-}
-
-function computePlayerStats(summary: PlayerSummary, games: Game[]) {
-  const results = games.flatMap((g) =>
-    g.game_results.filter((r) => r.players?.puuid === summary.puuid).map((r) => ({ r, win: g.our_team_win })),
-  )
-
-  const total = results.length
-  const wins = results.filter((x) => x.win).length
-  const avgContrib =
-    total > 0
-      ? Math.round((results.reduce((a, x) => a + x.r.contribution_score, 0) / total) * 10) / 10
-      : 0
-
-  const champCounts = new Map<string, number>()
-  for (const { r } of results) {
-    champCounts.set(r.champion_name, (champCounts.get(r.champion_name) ?? 0) + 1)
-  }
-  const bestChamp = [...champCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—'
-
-  return {
-    total,
-    wins,
-    win_rate: total > 0 ? Math.round((wins / total) * 100) : 0,
-    avg_contribution: avgContrib,
-    best_champion: bestChamp,
-  }
-}
-
-// ─── GameRow with medals ───────────────────────────────────────────────────────
-
-function GameRow({ game }: { game: Game }) {
-  const medals = calculateMedals(game.game_results)
-  const resultMedals: Record<string, typeof medals> = {}
-  for (const m of medals) {
-    for (const w of m.winners) {
-      if (!resultMedals[w.id]) resultMedals[w.id] = []
-      resultMedals[w.id].push(m)
-    }
-  }
-
-  const sorted = [...game.game_results]
-    .filter((r: GameResult) => r.players)
-    .sort((a: GameResult, b: GameResult) => b.contribution_score - a.contribution_score)
-
-  return (
-    <Link
-      href={`/games/${game.id}`}
-      className="block bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-purple-600 transition-all"
-    >
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <span
-            className={`px-3 py-1 rounded-full text-xs font-bold ${
-              game.our_team_win
-                ? 'bg-green-900 text-green-300'
-                : 'bg-red-900 text-red-300'
-            }`}
-          >
-            {game.our_team_win ? 'WIN' : 'LOSS'}
-          </span>
-          <span className="text-gray-500 text-sm">{formatDuration(game.duration_seconds)}</span>
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-4">
-        {sorted.map((result: GameResult) => {
-          const myMedals = resultMedals[result.id] ?? []
-          return (
-            <div key={result.id} className="flex items-center gap-2">
-              <ChampionIcon name={result.champion_name} size={28} />
-              <div>
-                <div className="text-xs text-gray-300">{result.players?.game_name}</div>
-                <div className="text-xs text-gray-500">
-                  {result.champion_name} • {result.kills}/{result.deaths}/{result.assists}
-                </div>
-              </div>
-              <div className="ml-1 text-xs font-bold text-purple-400">
-                {result.contribution_score}
-              </div>
-              {myMedals.length > 0 && (
-                <div className="flex gap-0.5">
-                  {myMedals.map(({ medal }) => (
-                    <span
-                      key={medal.id}
-                      title={`${medal.name}: ${result.players?.game_name}`}
-                      className="text-xs cursor-default"
-                    >
-                      {medal.emoji}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </Link>
-  )
-}
-
-// ─── Hall of Fame ─────────────────────────────────────────────────────────────
-
-function HallOfFame({ nicknames }: { nicknames: NicknameAward[] }) {
-  if (nicknames.length === 0) {
-    return (
-      <p className="text-gray-500 text-center py-8">
-        데이터가 부족합니다. 게임을 더 싱크해주세요.
-      </p>
-    )
-  }
-
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-      {nicknames.map((award) => (
-        <div
-          key={award.id}
-          className={`bg-gradient-to-br ${award.color} rounded-xl p-4 border ${award.borderColor}`}
-        >
-          <div className="text-3xl mb-1">{award.emoji}</div>
-          <div className={`text-sm font-bold ${award.textColor}`}>{award.name}</div>
-          <div className="text-xs text-gray-400 mb-2">{award.description}</div>
-          <div className="text-white font-semibold text-sm">{award.winner}</div>
-          <div className="text-xs text-gray-300 mt-0.5">{award.valueLabel}</div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ─── Badge Leaderboard Table ───────────────────────────────────────────────────
-
 function BadgeTable({ games, players }: { games: Game[]; players: PlayerSummary[] }) {
-  const leaderboard = buildBadgeLeaderboard(games)
-
+  const leaderboard = useMemo(() => buildBadgeCounts(games), [games])
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+    <div className="overflow-x-auto -mx-4 sm:mx-0">
+      <table className="w-full text-sm min-w-[400px]">
         <thead>
           <tr className="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-700">
             <th className="px-4 py-3 text-left">플레이어</th>
-            {BADGE_DEFS.map((b) => (
-              <th key={b.id} className="px-2 py-3 text-center" title={b.name}>
-                {b.emoji}
-              </th>
+            {BADGE_DEFS.map(b => (
+              <th key={b.id} className="px-2 py-3 text-center" title={b.name}>{b.emoji}</th>
             ))}
             <th className="px-4 py-3 text-right">합계</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-700">
-          {players.map((p) => {
-            const myBadges = leaderboard[p.game_name] ?? {}
-            const total = Object.values(myBadges).reduce((a, b) => a + b, 0)
+          {players.map(p => {
+            const my = leaderboard[p.game_name] ?? {}
+            const total = Object.values(my).reduce((a, b) => a + b, 0)
             return (
-              <tr key={p.puuid} className="hover:bg-gray-750 transition-colors">
-                <td className="px-4 py-3 font-medium text-white">{p.game_name}</td>
-                {BADGE_DEFS.map((b) => (
-                  <td key={b.id} className="px-2 py-3 text-center text-gray-300">
-                    {myBadges[b.id] ? (
-                      <span className="font-bold text-yellow-400">{myBadges[b.id]}</span>
-                    ) : (
-                      <span className="text-gray-600">—</span>
-                    )}
+              <tr key={p.puuid} className="hover:bg-gray-800/50">
+                <td className="px-4 py-3 font-medium text-white text-sm">{p.game_name}</td>
+                {BADGE_DEFS.map(b => (
+                  <td key={b.id} className="px-2 py-3 text-center">
+                    {my[b.id]
+                      ? <span className="font-bold text-yellow-400">{my[b.id]}</span>
+                      : <span className="text-gray-600">—</span>}
                   </td>
                 ))}
                 <td className="px-4 py-3 text-right font-bold text-purple-400">{total || '—'}</td>
@@ -256,240 +377,120 @@ function BadgeTable({ games, players }: { games: Game[]; players: PlayerSummary[
   )
 }
 
-// ─── Date Navigator ───────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
-interface DateNavigatorProps {
-  selectedDate: string      // "YYYY-MM-DD"
-  availableDates: Set<string>
-  onChange: (date: string) => void
-}
-
-function DateNavigator({ selectedDate, availableDates, onChange }: DateNavigatorProps) {
-  const [showPicker, setShowPicker] = useState(false)
-  const pickerRef = useRef<HTMLInputElement>(null)
-
-  const sortedDates = useMemo(
-    () => [...availableDates].sort(),
-    [availableDates],
-  )
-
-  const currentIndex = sortedDates.indexOf(selectedDate)
-  const hasPrev = currentIndex > 0
-  const hasNext = currentIndex < sortedDates.length - 1
-
-  const goPrev = () => hasPrev && onChange(sortedDates[currentIndex - 1])
-  const goNext = () => hasNext && onChange(sortedDates[currentIndex + 1])
-
-  const handleCalendarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value // "YYYY-MM-DD"
-    if (v) onChange(v)
-    setShowPicker(false)
-  }
-
-  return (
-    <div className="flex items-center gap-3">
-      {/* Prev arrow */}
-      <button
-        onClick={goPrev}
-        disabled={!hasPrev}
-        className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-        title="이전 날"
-      >
-        ‹
-      </button>
-
-      {/* Date display + calendar */}
-      <div className="relative">
-        <button
-          onClick={() => {
-            setShowPicker(true)
-            setTimeout(() => pickerRef.current?.showPicker?.(), 0)
-          }}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 hover:border-purple-500 transition-all text-white font-medium text-sm"
-        >
-          <span>📅</span>
-          <span>{formatDisplayDate(selectedDate)}</span>
-        </button>
-        {/* Hidden native date input */}
-        <input
-          ref={pickerRef}
-          type="date"
-          value={selectedDate}
-          onChange={handleCalendarChange}
-          onBlur={() => setShowPicker(false)}
-          className="absolute inset-0 opacity-0 cursor-pointer"
-          style={{ pointerEvents: showPicker ? 'auto' : 'none' }}
-        />
-      </div>
-
-      {/* Next arrow */}
-      <button
-        onClick={goNext}
-        disabled={!hasNext}
-        className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-        title="다음 날"
-      >
-        ›
-      </button>
-
-      {/* Today shortcut */}
-      {selectedDate !== todayKST() && availableDates.has(todayKST()) && (
-        <button
-          onClick={() => onChange(todayKST())}
-          className="px-3 py-2 rounded-lg bg-purple-900 border border-purple-700 text-purple-300 text-xs font-medium hover:bg-purple-800 transition-all"
-        >
-          오늘
-        </button>
-      )}
-
-      {availableDates.size > 0 && (
-        <span className="text-xs text-gray-500">
-          {currentIndex >= 0 ? `${currentIndex + 1} / ${sortedDates.length}일` : '해당 날짜 없음'}
-        </span>
-      )}
-    </div>
-  )
-}
-
-// ─── Main Dashboard Client Component ─────────────────────────────────────────
-
-interface DashboardClientProps {
+interface Props {
   allGames: Game[]
   players: PlayerSummary[]
   initialNicknames: NicknameAward[]
 }
 
-export default function DashboardClient({
-  allGames,
-  players,
-  initialNicknames,
-}: DashboardClientProps) {
-  // Build set of dates that have games (KST)
+export default function DashboardClient({ allGames, players, initialNicknames }: Props) {
   const availableDates = useMemo(() => {
     const s = new Set<string>()
     for (const g of allGames) s.add(toKSTDateString(g.played_at))
     return s
   }, [allGames])
 
-  // Default: most recent date with games (or today)
-  const defaultDate = useMemo(() => {
-    const sorted = [...availableDates].sort()
-    return sorted[sorted.length - 1] ?? todayKST()
-  }, [availableDates])
-
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    // compute inline so initial render already shows the right date
-    const dates = allGames.map((g) => toKSTDateString(g.played_at)).sort()
+    const dates = allGames.map(g => toKSTDateString(g.played_at)).sort()
     return dates[dates.length - 1] ?? todayKST()
   })
 
-  // Keep in sync if allGames changes (e.g. after sync)
+  // Sync when allGames changes
   useEffect(() => {
-    setSelectedDate(defaultDate)
-  }, [defaultDate])
+    const dates = allGames.map(g => toKSTDateString(g.played_at)).sort()
+    const latest = dates[dates.length - 1] ?? todayKST()
+    setSelectedDate(latest)
+  }, [allGames])
 
-  // Filter games by selected KST date
-  const filteredGames = useMemo(() => {
-    return allGames.filter((g) => toKSTDateString(g.played_at) === selectedDate)
-  }, [allGames, selectedDate])
+  // Animate on date change
+  const [animKey, setAnimKey] = useState(0)
+  const handleDateChange = (d: string) => {
+    setSelectedDate(d)
+    setAnimKey(k => k + 1)
+  }
+
+  const filteredGames = useMemo(
+    () => allGames.filter(g => toKSTDateString(g.played_at) === selectedDate),
+    [allGames, selectedDate]
+  )
+
+  // Sort players by config order
+  const orderedPlayers = useMemo(() => {
+    return [...players].sort((a, b) => {
+      const ai = TRACKED_PLAYERS.findIndex(p => p.puuid === a.puuid)
+      const bi = TRACKED_PLAYERS.findIndex(p => p.puuid === b.puuid)
+      return ai - bi
+    })
+  }, [players])
 
   return (
-    <div className="space-y-8">
-      {/* Date Navigator */}
+    <div className="space-y-6">
+
+      {/* ── 고정 플레이어 프로필 ── */}
+      <section>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+          {orderedPlayers.map(p => (
+            <Link key={p.puuid} href={`/players/${encodeURIComponent(p.puuid)}`}>
+              <PlayerProfileCard player={p} allGames={allGames} />
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* ── 날짜 탐색 ── */}
       <DateNavigator
         selectedDate={selectedDate}
         availableDates={availableDates}
-        onChange={setSelectedDate}
+        onChange={handleDateChange}
       />
 
-      {/* Player Cards — based on selected date */}
-      <section>
-        <h2 className="text-xl font-semibold text-gray-300 mb-4">Players</h2>
-        {players.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">
-            No data yet — click &quot;Sync Games&quot; to pull match history
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {players.map((player) => {
-              const stats = computePlayerStats(player, filteredGames)
-              return (
-                <Link
-                  key={player.puuid}
-                  href={`/players/${encodeURIComponent(player.puuid)}`}
-                  className="block bg-gray-800 rounded-xl p-5 hover:bg-gray-750 hover:border-purple-600 border border-gray-700 transition-all"
-                >
-                  <div className="font-semibold text-white text-lg">{player.game_name}</div>
-                  <div className="text-sm text-gray-400 mb-3">#{player.tag_line}</div>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Games</span>
-                      <span className="text-white font-medium">{stats.total}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Win Rate</span>
-                      <span
-                        className={stats.win_rate >= 50 ? 'text-green-400 font-medium' : 'text-red-400 font-medium'}
-                      >
-                        {stats.win_rate}%
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Avg Contribution</span>
-                      <span className="text-purple-400 font-medium">{stats.avg_contribution}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Most Played</span>
-                      <span className="text-yellow-400 font-medium">{stats.best_champion}</span>
-                    </div>
-                  </div>
-                </Link>
-              )
-            })}
-          </div>
-        )}
-      </section>
+      {/* ── 날짜별 콘텐츠 (애니메이션) ── */}
+      <div
+        key={animKey}
+        className="space-y-4"
+        style={{ animation: 'fadeSlideIn 0.25s ease-out' }}
+      >
+        {/* MVP */}
+        {filteredGames.length > 0 && <MvpCard games={filteredGames} />}
 
-      {/* Games of the day */}
-      <section>
-        <h2 className="text-xl font-semibold text-gray-300 mb-4">
-          당일 게임
-          <span className="ml-2 text-sm text-gray-500 font-normal">
-            ({filteredGames.length}경기)
-          </span>
-        </h2>
-        {filteredGames.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">해당 날짜에 기록된 게임이 없습니다</p>
-        ) : (
-          <div className="space-y-3">
-            {filteredGames.map((game) => (
-              <GameRow key={game.id} game={game} />
-            ))}
+        {/* 당일 게임 */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="text-base font-semibold text-gray-300">당일 게임</h2>
+            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">
+              {filteredGames.length}경기
+            </span>
           </div>
-        )}
-      </section>
+          {filteredGames.length === 0
+            ? <p className="text-gray-500 text-center py-8 text-sm">해당 날짜에 기록된 게임이 없습니다</p>
+            : (
+              <div className="space-y-2">
+                {filteredGames.map(g => <GameRow key={g.id} game={g} />)}
+              </div>
+            )
+          }
+        </section>
+      </div>
 
-      {/* Hall of Fame — always full history */}
+      {/* ── 명예의 전당 (누적) ── */}
       <section>
-        <div className="flex items-center gap-3 mb-4">
-          <h2 className="text-xl font-semibold text-gray-300">🏛️ 명예의 전당</h2>
-          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded-full border border-gray-700">
-            전체 누적 기준
-          </span>
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-base font-semibold text-gray-300">🏛️ 명예의 전당</h2>
+          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">전체 누적</span>
         </div>
         <HallOfFame nicknames={initialNicknames} />
       </section>
 
-      {/* All-time Badge Leaderboard */}
+      {/* ── 뱃지 리더보드 (누적) ── */}
       <section>
-        <div className="flex items-center gap-3 mb-4">
-          <h2 className="text-xl font-semibold text-gray-300">🏅 뱃지 리더보드</h2>
-          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded-full border border-gray-700">
-            전체 기록
-          </span>
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-base font-semibold text-gray-300">🏅 뱃지 리더보드</h2>
+          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">전체 기록</span>
         </div>
-        <div className="bg-gray-800 rounded-2xl border border-gray-700 overflow-hidden">
-          <BadgeTable games={allGames} players={players} />
+        <div className="bg-gray-800/60 rounded-2xl border border-gray-700 overflow-hidden">
+          <BadgeTable games={allGames} players={orderedPlayers} />
         </div>
       </section>
     </div>
