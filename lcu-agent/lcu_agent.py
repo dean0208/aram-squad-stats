@@ -401,25 +401,42 @@ def main():
         print("  전송할 게임 없음.")
         return
 
-    # 6. 서버 전송
+    # 6. 서버 전송 (배치로 나눠서)
     if not LCU_SECRET:
         print("\n✗ LCU_SYNC_SECRET 환경변수가 설정되지 않았습니다.")
         print("  set LCU_SYNC_SECRET=your-secret 후 재실행하세요.")
         sys.exit(1)
 
-    print(f"[5] 서버 전송 ({SERVER_URL})...")
-    resp = requests.post(SERVER_URL, json={
-        'secret': LCU_SECRET,
-        'games': games_payload,
-    }, timeout=30)
+    BATCH_SIZE = 10
+    total_synced = 0
+    total_skipped = 0
+    total_errors = []
 
-    print(f"  HTTP {resp.status_code}")
-    result = resp.json()
-    print(f"  synced:  {result.get('synced', '?')}")
-    print(f"  skipped: {result.get('skipped', '?')}")
-    if result.get('errors'):
-        print(f"  errors:  {result['errors']}")
-    print("\n완료!")
+    batches = [games_payload[i:i+BATCH_SIZE] for i in range(0, len(games_payload), BATCH_SIZE)]
+    print(f"[5] 서버 전송 ({len(batches)}배치 × {BATCH_SIZE}경기씩)...")
+
+    for i, batch in enumerate(batches):
+        print(f"  배치 {i+1}/{len(batches)} ({len(batch)}경기)...", end=' ', flush=True)
+        try:
+            resp = requests.post(SERVER_URL, json={
+                'secret': LCU_SECRET,
+                'games': batch,
+            }, timeout=60)
+            result = resp.json()
+            synced  = result.get('synced', 0)
+            skipped = result.get('skipped', 0)
+            errors  = result.get('errors', [])
+            total_synced  += synced
+            total_skipped += skipped
+            total_errors  += errors
+            print(f"✓ synced:{synced} skipped:{skipped}")
+        except Exception as e:
+            print(f"✗ {e}")
+            total_errors.append(str(e))
+
+    print(f"\n완료! 총 synced:{total_synced} / skipped:{total_skipped}")
+    if total_errors:
+        print(f"errors: {total_errors[:5]}")
 
 
 if __name__ == '__main__':
