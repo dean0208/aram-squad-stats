@@ -47,7 +47,7 @@ export interface RiotMatchDetail {
 // ─── Riot API Fetchers ────────────────────────────────────────────────────────
 
 export async function fetchRecentMatches(puuid: string, count = 20): Promise<string[]> {
-  const url = `${RIOT_BASE}/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=450&count=${count}`
+  const url = `${RIOT_BASE}/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=480&count=${count}`
   const res = await fetch(url, { headers: riotHeaders() })
   if (!res.ok) {
     const text = await res.text()

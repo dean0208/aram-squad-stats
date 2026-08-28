@@ -24,8 +24,8 @@ export const TRACKED_PLAYERS = [
 
 export const TRACKED_PUUIDS = new Set(TRACKED_PLAYERS.map((p) => p.puuid))
 
-// Only collect games from this date onwards (KST 2026-08-28 00:00)
-export const DATA_START_DATE = new Date('2026-08-28T00:00:00+09:00')
+// Only collect games from this date onwards (2026-07-01 KST)
+export const DATA_START_DATE = new Date('2026-07-01T00:00:00+09:00')
 
 // Account API는 asia (OCE 포함 전 서버 지원)
 export const ACCOUNT_BASE = 'https://asia.api.riotgames.com'
