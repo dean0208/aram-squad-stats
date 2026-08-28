@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: '증바람 분석기',
+  title: '마 좀 뜨급나?',
   description: '4인 증바람 게임 기록과 플레이어별 기여도를 분석합니다.',
 }
 

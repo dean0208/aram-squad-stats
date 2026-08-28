@@ -119,7 +119,6 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
           <ChampionIcon name={stats.mostChamp} size={32} />
           <div className="min-w-0">
             <div className="text-[10px] leading-tight text-gray-500">모스트</div>
-            <div className="truncate text-xs font-semibold text-yellow-400" title={stats.mostChamp}>{stats.mostChamp}</div>
           </div>
           <div className="text-right text-[10px] leading-tight text-gray-400">
             <div>{stats.champCount}판</div>
@@ -132,7 +131,6 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
             <ChampionIcon name={stats.bestChamp.name} size={32} />
             <div className="min-w-0">
               <div className="text-[10px] leading-tight text-gray-500">기여도 👍</div>
-              <div className="truncate text-xs font-semibold text-purple-400" title={stats.bestChamp.name}>{stats.bestChamp.name}</div>
             </div>
             <div className="whitespace-nowrap text-right text-[10px] text-gray-400">
               평균 <span className="font-semibold text-purple-300">{stats.bestChamp.avgContribution}점</span>
@@ -145,7 +143,6 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
             <ChampionIcon name={stats.worstChamp.name} size={32} />
             <div className="min-w-0">
               <div className="text-[10px] leading-tight text-gray-500">기여도 👎</div>
-              <div className="truncate text-xs font-semibold text-red-400" title={stats.worstChamp.name}>{stats.worstChamp.name}</div>
             </div>
             <div className="whitespace-nowrap text-right text-[10px] text-gray-400">
               평균 <span className="font-semibold text-red-300">{stats.worstChamp.avgContribution}점</span>
@@ -156,9 +153,6 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
 
       {/* Role tag */}
       <div className="flex flex-wrap gap-1">
-        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-700 text-gray-300">
-          {stats.role.emoji} {stats.role.label}
-        </span>
         <span
           className={`text-xs px-2 py-0.5 rounded-full ${growthStatusUi.className}`}
           title="전체 게임 평균 기여도 대비 최근 10게임 성장세"
@@ -167,16 +161,10 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
         </span>
       </div>
 
-      {/* Stats row: stack on narrow iPhone screens to prevent text collisions */}
-      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-1.5 mt-auto">
-        <div className="min-w-0 rounded-lg bg-gray-900/50 px-2 py-1.5">
-          <div className="text-[10px] leading-tight text-gray-500">평균 기여도</div>
-          <div className="text-sm font-semibold text-blue-400">{stats.avgContrib}점</div>
-        </div>
-        <div className="min-w-0 rounded-lg bg-gray-900/50 px-2 py-1.5">
-          <div className="text-[10px] leading-tight text-gray-500">평균 데스</div>
-          <div className="text-sm font-semibold text-purple-400">{stats.avgDeath.toFixed(1)}회</div>
-        </div>
+      {/* Average contribution: keep the only numeric summary compact */}
+      <div className="min-w-0 rounded-lg bg-gray-900/50 px-2 py-1.5 mt-auto">
+        <div className="text-[10px] leading-tight text-gray-500">평균 기여도</div>
+        <div className="text-sm font-semibold text-blue-400">{stats.avgContrib}점</div>
       </div>
     </div>
   )
@@ -319,23 +307,23 @@ function DailyPerformance({ allGames, filteredGames, players }: {
     <div className="bg-gray-800/60 rounded-2xl border border-gray-700 overflow-hidden">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-700">
-        <div className="text-sm font-semibold text-gray-300">📊 오늘의 평균 대비 성과</div>
+        <div className="text-sm font-semibold text-gray-300">📊 오늘은 누가 좀 치싸뿌노</div>
         <div className="text-xs text-gray-500 mt-0.5">전체 평균과 비교한 오늘의 상승·하락세</div>
       </div>
 
       {/* Two intuitive highlights, without score clutter */}
       <div className="grid grid-cols-2 divide-x divide-gray-700">
         <div className="p-4">
-          <div className="text-xs text-gray-500 mb-2">오늘의 캐리</div>
+          <div className="text-xs text-gray-500 mb-2">임마 좀 치네</div>
           <div className="text-2xl mb-1">🔥</div>
           <div className="text-sm font-bold text-green-400 truncate" title={topCarry.name}>{topCarry.name}</div>
-          <div className="text-xs text-green-300 mt-1">{topCarry.diff >= 0 ? '평소보다 상승세' : '오늘 가장 선방'}</div>
+          <div className="text-xs text-green-300 mt-1">{topCarry.diff >= 0 ? '뜨급다 뜨거워' : '오늘 가장 선방'}</div>
         </div>
         <div className="p-4">
-          <div className="text-xs text-gray-500 mb-2">오늘의 아쉬움</div>
+          <div className="text-xs text-gray-500 mb-2">임마 걸배이고</div>
           <div className="text-2xl mb-1">🧊</div>
           <div className="text-sm font-bold text-red-400 truncate" title={topAnchor.name}>{topAnchor.name}</div>
-          <div className="text-xs text-red-300 mt-1">{topAnchor.diff < 0 ? '평소보다 하락세' : '오늘은 조금 아쉬워요'}</div>
+          <div className="text-xs text-red-300 mt-1">{topAnchor.diff < 0 ? '마 정신 안채리나' : '오늘은 조금 아쉬워요'}</div>
         </div>
       </div>
     </div>
