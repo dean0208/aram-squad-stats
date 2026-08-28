@@ -103,8 +103,22 @@ def lcu_get(session: requests.Session, path: str):
 # ─── 데이터 수집 ──────────────────────────────────────────────────────────────
 
 def get_current_puuid(session: requests.Session) -> str:
-    me = lcu_get(session, '/lol/login/v1/session')
-    return me['puuid']
+    # 여러 엔드포인트 시도 (버전마다 다름)
+    endpoints = [
+        '/lol/summoner/v1/current-summoner',
+        '/lol/login/v1/session',
+        '/lol/lobby/v2/lobby',
+    ]
+    for ep in endpoints:
+        try:
+            data = lcu_get(session, ep)
+            if isinstance(data, dict):
+                puuid = data.get('puuid') or data.get('localPlayer', {}).get('puuid', '')
+                if puuid:
+                    return puuid
+        except Exception:
+            continue
+    raise RuntimeError("PUUID를 가져올 수 없습니다. 모든 엔드포인트 실패")
 
 
 def get_match_history(session: requests.Session, puuid: str, count: int = 200) -> list:
@@ -197,10 +211,17 @@ def run_debug(session: requests.Session, puuid: str):
     # 1. /lol/login 확인
     print("[1] 현재 로그인 정보")
     try:
-        me = lcu_get(session, '/lol/login/v1/session')
-        if isinstance(me, dict):
-            print(f"  puuid: {str(me.get('puuid', '?'))[:20]}...")
-            print(f"  summonerName: {me.get('summonerName', '?')}")
+        # summoner 엔드포인트 시도
+        for ep in ['/lol/summoner/v1/current-summoner', '/lol/login/v1/session']:
+            try:
+                me = lcu_get(session, ep)
+                if isinstance(me, dict) and me.get('puuid'):
+                    print(f"  endpoint: {ep}")
+                    print(f"  puuid: {str(me.get('puuid', '?'))[:25]}...")
+                    print(f"  displayName: {me.get('displayName', me.get('summonerName', '?'))}")
+                    break
+            except Exception:
+                continue
     except Exception as e:
         print(f"  실패: {e}")
 
