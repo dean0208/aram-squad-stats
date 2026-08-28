@@ -157,20 +157,6 @@ const NICKNAME_DEFS: NicknameDefinition[] = [
     direction: 'highest',
   },
   {
-    id: 'burden',
-    emoji: '📉',
-    name: '팀의 짐',
-    description: '패배 시 기여도 평균 최저',
-    colorKey: 'slate',
-    getValue: (s) => s.avgContributionOnLoss,
-    formatValue: (s) =>
-      s.lossGames > 0
-        ? `패배시 평균 ${s.avgContributionOnLoss.toFixed(1)}점`
-        : '패배 없음',
-    direction: 'lowest',
-    minGames: 3,
-  },
-  {
     id: 'hotstreak',
     emoji: '🔥',
     name: '연승러',

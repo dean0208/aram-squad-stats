@@ -1,9 +1,34 @@
 import { createServerClient } from '@/lib/supabase'
-import { TRACKED_PLAYERS } from '@/lib/config'
+import { TRACKED_PLAYERS, DDRAGON_BASE } from '@/lib/config'
 import SyncButton from '@/components/SyncButton'
 import DashboardClient from '@/components/DashboardClient'
 import type { Game } from '@/lib/types'
 import { computeNicknames } from '@/lib/nicknames'
+
+// DDragon tag → Korean role
+const TAG_KO: Record<string, { label: string; emoji: string }> = {
+  Marksman: { label: '원딜',   emoji: '🏹' },
+  Mage:     { label: '마법사', emoji: '🔮' },
+  Tank:     { label: '탱커',   emoji: '🛡️' },
+  Fighter:  { label: '브루저', emoji: '⚡' },
+  Support:  { label: '서포터', emoji: '💊' },
+  Assassin: { label: '암살자', emoji: '🗡️' },
+}
+
+async function getChampRoles(): Promise<Record<string, { label: string; emoji: string }>> {
+  try {
+    const res = await fetch(`${DDRAGON_BASE}/data/en_US/champion.json`, { next: { revalidate: 86400 } })
+    const data = await res.json()
+    const map: Record<string, { label: string; emoji: string }> = {}
+    for (const champ of Object.values(data.data) as { id: string; tags: string[] }[]) {
+      const primaryTag = champ.tags[0]
+      map[champ.id] = TAG_KO[primaryTag] ?? { label: '올라운더', emoji: '⚡' }
+    }
+    return map
+  } catch {
+    return {}
+  }
+}
 
 async function getAllGames(): Promise<Game[]> {
   const supabase = createServerClient()
@@ -65,14 +90,11 @@ async function getPlayers() {
 }
 
 export default async function HomePage() {
-  const [allGames, players] = await Promise.all([getAllGames(), getPlayers()])
-
-  // Compute initial nicknames server-side (full history)
+  const [allGames, players, champRoles] = await Promise.all([getAllGames(), getPlayers(), getChampRoles()])
   const initialNicknames = computeNicknames(allGames)
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white">ARAM Squad Stats</h1>
@@ -80,12 +102,11 @@ export default async function HomePage() {
         </div>
         <SyncButton />
       </div>
-
-      {/* Client component handles filter + all sections */}
       <DashboardClient
         allGames={allGames}
         players={players}
         initialNicknames={initialNicknames}
+        champRoles={champRoles}
       />
     </div>
   )

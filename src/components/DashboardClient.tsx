@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Game, GameResult } from '@/lib/types'
@@ -13,16 +13,10 @@ import { TRACKED_PLAYERS, DDRAGON_VERSION } from '@/lib/config'
 function formatDuration(s: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
-
 function toKSTDateString(iso: string) {
-  const kst = new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000)
-  return kst.toISOString().slice(0, 10)
+  return new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
-
-function todayKST() {
-  return toKSTDateString(new Date().toISOString())
-}
-
+function todayKST() { return toKSTDateString(new Date().toISOString()) }
 function formatDisplayDate(ymd: string) {
   const [y, m, d] = ymd.split('-')
   return `${y}년 ${parseInt(m)}월 ${parseInt(d)}일`
@@ -33,85 +27,114 @@ function ChampionIcon({ name, size = 32 }: { name: string; size?: number }) {
   return (
     <Image
       src={`https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${safe}.png`}
-      alt={name} width={size} height={size}
-      className="rounded-md" unoptimized
+      alt={name} width={size} height={size} className="rounded-md" unoptimized
     />
   )
 }
 
-// ─── Player profile type inference ───────────────────────────────────────────
+// ─── Player stat computation ──────────────────────────────────────────────────
 
-function inferPlayerProfile(puuid: string, allGames: Game[]) {
-  const results = allGames.flatMap(g =>
+type ChampRoleMap = Record<string, { label: string; emoji: string }>
+
+function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRoleMap) {
+  const entries = allGames.flatMap(g =>
     g.game_results.filter(r => r.players?.puuid === puuid).map(r => ({ r, win: g.our_team_win }))
   )
-  if (!results.length) return null
+  if (!entries.length) return null
+
+  const total = entries.length
 
   // Most played champ
   const champData = new Map<string, { count: number; wins: number }>()
-  for (const { r, win } of results) {
+  for (const { r, win } of entries) {
     const prev = champData.get(r.champion_name) ?? { count: 0, wins: 0 }
     champData.set(r.champion_name, { count: prev.count + 1, wins: prev.wins + (win ? 1 : 0) })
   }
-  const [mostPlayed, mostData] = [...champData.entries()].sort((a, b) => b[1].count - a[1].count)[0]
-  const champWinRate = Math.round((mostData.wins / mostData.count) * 100)
+  const [mostChamp, mostInfo] = [...champData.entries()].sort((a, b) => b[1].count - a[1].count)[0]
+  const champWinRate = Math.round((mostInfo.wins / mostInfo.count) * 100)
+  const role = champRoles[mostChamp] ?? { label: '올라운더', emoji: '⚡' }
 
-  // Play style — normalize by game count to avoid total inflation
-  const total = results.length
-  const avgDmg    = results.reduce((a, { r }) => a + r.damage_dealt, 0) / total
-  const avgTaken  = results.reduce((a, { r }) => a + r.damage_taken, 0) / total
-  const avgHeal   = results.reduce((a, { r }) => a + r.healing, 0) / total
-  const avgCC     = results.reduce((a, { r }) => a + r.cc_score, 0) / total
+  // Core stats per game
+  const avgDmg    = entries.reduce((a, { r }) => a + r.damage_dealt, 0) / total
+  const avgTaken  = entries.reduce((a, { r }) => a + r.damage_taken, 0) / total
+  const avgHeal   = entries.reduce((a, { r }) => a + r.healing, 0) / total
+  const avgCC     = entries.reduce((a, { r }) => a + r.cc_score, 0) / total
+  const avgAssist = entries.reduce((a, { r }) => a + r.assists, 0) / total
+  const avgDeath  = entries.reduce((a, { r }) => a + r.deaths, 0) / total
+  const avgContrib= entries.reduce((a, { r }) => a + r.contribution_score, 0) / total
 
-  // 힐러: 힐이 딜보다 현저히 높은 경우
-  let type = '올라운더'; let typeEmoji = '⚡'
-  if (avgHeal > avgDmg * 0.6 && avgHeal > 5000) { type = '힐러형';  typeEmoji = '💊' }
-  else if (avgTaken > avgDmg * 1.5)              { type = '탱커형';  typeEmoji = '🛡️' }
-  else if (avgCC > 150)                           { type = 'CC형';    typeEmoji = '🌀' }
-  else if (avgDmg > 18000)                        { type = '딜러형';  typeEmoji = '⚔️' }
+  // 1. 팀기여 점수 (0-100 normalized by team avg)
+  const teamScore = Math.round((avgAssist * 1.2 + avgCC / 10 + avgHeal / 200) / 10)
+
+  // 2. 생존 효율 = 기여도 / (데스 + 1)
+  const surviveEff = Math.round((avgContrib / (avgDeath + 1)) * 10) / 10
+
+  // 3. 성장 트렌드: 최근 20경기 vs 전체 평균
+  const recent = entries.slice(0, Math.min(20, total))
+  const recentAvg = recent.reduce((a, { r }) => a + r.contribution_score, 0) / recent.length
+  const trend = Math.round((recentAvg - avgContrib) * 10) / 10
 
   return {
-    mostPlayed,
-    champCount: mostData.count,
-    champWinRate,
-    type,
-    typeEmoji,
+    mostChamp, champWinRate, champCount: mostInfo.count, role,
+    avgDmg, avgTaken, avgHeal, avgCC,
+    teamScore, surviveEff, trend,
+    total,
   }
 }
 
-// ─── Fixed Player Card (all-time) ────────────────────────────────────────────
+// ─── Player Profile Card ──────────────────────────────────────────────────────
 
 interface PlayerSummary { id: string; puuid: string; game_name: string; tag_line: string }
 
-function PlayerProfileCard({ player, allGames }: { player: PlayerSummary; allGames: Game[] }) {
-  const profile = useMemo(() => inferPlayerProfile(player.puuid, allGames), [player.puuid, allGames])
-  if (!profile) return null
+function PlayerProfileCard({ player, allGames, champRoles }: {
+  player: PlayerSummary; allGames: Game[]; champRoles: ChampRoleMap
+}) {
+  const stats = useMemo(
+    () => computePlayerStats(player.puuid, allGames, champRoles),
+    [player.puuid, allGames, champRoles]
+  )
+  if (!stats) return null
+
+  const trendPositive = stats.trend > 0
 
   return (
-    <div className="bg-gray-800/60 rounded-2xl p-4 border border-gray-700 flex flex-col gap-3">
+    <div className="bg-gray-800/60 rounded-2xl p-4 border border-gray-700 flex flex-col gap-3 h-full hover:border-purple-600/50 transition-colors">
+      {/* Header */}
       <div>
-        <div className="font-bold text-white text-base leading-tight">{player.game_name}</div>
+        <div className="font-bold text-white text-sm leading-tight">{player.game_name}</div>
         <div className="text-xs text-gray-500">#{player.tag_line}</div>
       </div>
 
-      {/* Champion icon + name */}
+      {/* Most champ */}
       <div className="flex items-center gap-2">
-        <ChampionIcon name={profile.mostPlayed} size={36} />
+        <ChampionIcon name={stats.mostChamp} size={36} />
         <div>
           <div className="text-xs text-gray-400">모스트</div>
-          <div className="text-sm font-semibold text-yellow-400">{profile.mostPlayed}</div>
-          <div className="text-xs text-gray-500">{profile.champCount}판</div>
+          <div className="text-sm font-semibold text-yellow-400 leading-tight">{stats.mostChamp}</div>
+          <div className="text-xs text-gray-500">{stats.champCount}판 · {stats.champWinRate}%</div>
         </div>
       </div>
 
-      {/* Tags */}
+      {/* Role tag */}
       <div className="flex flex-wrap gap-1">
         <span className="text-xs px-2 py-0.5 rounded-full bg-gray-700 text-gray-300">
-          {profile.typeEmoji} {profile.type}
+          {stats.role.emoji} {stats.role.label}
         </span>
-        <span className={`text-xs px-2 py-0.5 rounded-full ${profile.champWinRate >= 50 ? 'bg-green-900/60 text-green-300' : 'bg-red-900/60 text-red-300'}`}>
-          승률 {profile.champWinRate}%
+        <span className={`text-xs px-2 py-0.5 rounded-full ${trendPositive ? 'bg-green-900/60 text-green-300' : 'bg-gray-700 text-gray-400'}`}>
+          {trendPositive ? '📈' : '📊'} {trendPositive ? '+' : ''}{stats.trend}
         </span>
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mt-auto">
+        <div className="flex justify-between">
+          <span className="text-gray-500">팀기여</span>
+          <span className="text-blue-400 font-semibold">{stats.teamScore}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-500">생존효율</span>
+          <span className="text-purple-400 font-semibold">{stats.surviveEff}</span>
+        </div>
       </div>
     </div>
   )
@@ -121,22 +144,12 @@ function PlayerProfileCard({ player, allGames }: { player: PlayerSummary; allGam
 
 function MvpCard({ games }: { games: Game[] }) {
   if (!games.length) return null
-
-  // Find best contribution_score across all results today
   let mvpResult: GameResult | null = null
-  let mvpGame: Game | null = null
-
-  for (const game of games) {
-    for (const r of game.game_results) {
-      if (!r.players) continue
-      if (!mvpResult || r.contribution_score > mvpResult.contribution_score) {
+  for (const game of games)
+    for (const r of game.game_results)
+      if (r.players && (!mvpResult || r.contribution_score > mvpResult.contribution_score))
         mvpResult = r
-        mvpGame = game
-      }
-    }
-  }
-
-  if (!mvpResult || !mvpGame) return null
+  if (!mvpResult) return null
 
   return (
     <div className="bg-gradient-to-r from-amber-950 to-yellow-950 border border-amber-700 rounded-2xl p-4 flex items-center gap-4">
@@ -162,38 +175,29 @@ function MvpCard({ games }: { games: Game[] }) {
 function GameRow({ game }: { game: Game }) {
   const [open, setOpen] = useState(false)
   const medals = useMemo(() => calculateMedals(game.game_results), [game])
-
   const resultMedals: Record<string, typeof medals> = {}
-  for (const m of medals) {
+  for (const m of medals)
     for (const w of m.winners) {
       if (!resultMedals[w.id]) resultMedals[w.id] = []
       resultMedals[w.id].push(m)
     }
-  }
 
   const sorted = [...game.game_results]
     .filter((r: GameResult) => r.players)
     .sort((a: GameResult, b: GameResult) => b.contribution_score - a.contribution_score)
-
-  const wins = game.our_team_win
   const mvp = sorted[0]
+  const wins = game.our_team_win
 
   return (
-    <div className={`rounded-xl border transition-all overflow-hidden ${wins ? 'border-green-800/60' : 'border-red-900/60'}`}>
-      {/* Summary row — always visible */}
+    <div className={`rounded-xl border overflow-hidden ${wins ? 'border-green-800/60' : 'border-red-900/60'}`}>
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-3 p-3 sm:p-4 text-left hover:bg-white/5 transition-colors"
       >
-        {/* WIN/LOSS */}
         <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${wins ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
           {wins ? 'WIN' : 'LOSS'}
         </span>
-
-        {/* Duration */}
         <span className="text-gray-500 text-xs shrink-0">{formatDuration(game.duration_seconds)}</span>
-
-        {/* MVP preview */}
         {mvp && (
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <ChampionIcon name={mvp.champion_name} size={24} />
@@ -206,14 +210,9 @@ function GameRow({ game }: { game: Game }) {
             ))}
           </div>
         )}
-
-        {/* Chevron */}
-        <span className={`shrink-0 text-gray-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>
-          ▾
-        </span>
+        <span className={`shrink-0 text-gray-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>▾</span>
       </button>
 
-      {/* Detail — collapsible */}
       {open && (
         <Link href={`/games/${game.id}`} className="block border-t border-gray-700/50 p-3 sm:p-4 hover:bg-white/5 transition-colors">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -245,9 +244,7 @@ function GameRow({ game }: { game: Game }) {
 // ─── Date Navigator ───────────────────────────────────────────────────────────
 
 function DateNavigator({ selectedDate, availableDates, onChange }: {
-  selectedDate: string
-  availableDates: Set<string>
-  onChange: (d: string) => void
+  selectedDate: string; availableDates: Set<string>; onChange: (d: string) => void
 }) {
   const sorted = useMemo(() => [...availableDates].sort(), [availableDates])
   const idx = sorted.indexOf(selectedDate)
@@ -255,38 +252,20 @@ function DateNavigator({ selectedDate, availableDates, onChange }: {
 
   return (
     <div className="flex items-center gap-2">
-      <button
-        onClick={() => idx > 0 && onChange(sorted[idx - 1])}
-        disabled={idx <= 0}
-        className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-lg"
-      >‹</button>
-
+      <button onClick={() => idx > 0 && onChange(sorted[idx - 1])} disabled={idx <= 0}
+        className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-lg">‹</button>
       <div className="relative">
-        <button
-          onClick={() => setTimeout(() => pickerRef.current?.showPicker?.(), 0)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-800 border border-gray-700 hover:border-purple-500 text-white font-medium text-sm transition-all"
-        >
-          <span>📅</span>
-          <span>{formatDisplayDate(selectedDate)}</span>
+        <button onClick={() => setTimeout(() => pickerRef.current?.showPicker?.(), 0)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-800 border border-gray-700 hover:border-purple-500 text-white font-medium text-sm transition-all">
+          <span>📅</span><span>{formatDisplayDate(selectedDate)}</span>
         </button>
-        <input
-          ref={pickerRef} type="date" value={selectedDate}
+        <input ref={pickerRef} type="date" value={selectedDate}
           onChange={e => e.target.value && onChange(e.target.value)}
-          className="absolute inset-0 opacity-0 cursor-pointer"
-        />
+          className="absolute inset-0 opacity-0 cursor-pointer" />
       </div>
-
-      <button
-        onClick={() => idx < sorted.length - 1 && onChange(sorted[idx + 1])}
-        disabled={idx >= sorted.length - 1}
-        className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-lg"
-      >›</button>
-
-      {idx >= 0 && (
-        <span className="text-xs text-gray-500 hidden sm:block">
-          {idx + 1} / {sorted.length}일
-        </span>
-      )}
+      <button onClick={() => idx < sorted.length - 1 && onChange(sorted[idx + 1])} disabled={idx >= sorted.length - 1}
+        className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-lg">›</button>
+      {idx >= 0 && <span className="text-xs text-gray-500 hidden sm:block">{idx + 1} / {sorted.length}일</span>}
     </div>
   )
 }
@@ -294,9 +273,7 @@ function DateNavigator({ selectedDate, availableDates, onChange }: {
 // ─── Hall of Fame ─────────────────────────────────────────────────────────────
 
 function HallOfFame({ nicknames }: { nicknames: NicknameAward[] }) {
-  if (!nicknames.length) return (
-    <p className="text-gray-500 text-center py-6 text-sm">게임을 더 싱크해주세요.</p>
-  )
+  if (!nicknames.length) return <p className="text-gray-500 text-center py-6 text-sm">게임을 더 싱크해주세요.</p>
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
       {nicknames.map(award => (
@@ -312,18 +289,18 @@ function HallOfFame({ nicknames }: { nicknames: NicknameAward[] }) {
   )
 }
 
-// ─── Badge Table ──────────────────────────────────────────────────────────────
+// ─── Badge Leaderboard (카드형) ───────────────────────────────────────────────
 
 const BADGE_DEFS = [
-  { id: 'mvp', emoji: '👑', name: 'MVP' },
-  { id: 'dealer', emoji: '⚔️', name: '딜장인' },
-  { id: 'gold', emoji: '💰', name: '골드왕' },
-  { id: 'healer', emoji: '💊', name: '힐봇' },
-  { id: 'tank', emoji: '🛡️', name: '인간방패' },
-  { id: 'killer', emoji: '🎯', name: '킬머신' },
-  { id: 'assist', emoji: '🤝', name: '어시왕' },
-  { id: 'death', emoji: '💀', name: '죽어줘' },
-  { id: 'passive', emoji: '🐔', name: '꽁꽁이' },
+  { id: 'mvp',     emoji: '👑', name: 'MVP',    desc: '최고 기여도' },
+  { id: 'dealer',  emoji: '⚔️',  name: '딜장인', desc: '최고 딜량' },
+  { id: 'gold',    emoji: '💰', name: '골드왕', desc: '최다 골드' },
+  { id: 'healer',  emoji: '💊', name: '힐봇',   desc: '최고 힐량' },
+  { id: 'tank',    emoji: '🛡️', name: '방패',   desc: '피해흡수 1위' },
+  { id: 'killer',  emoji: '🎯', name: '킬머신', desc: '최다 킬' },
+  { id: 'assist',  emoji: '🤝', name: '어시왕', desc: '최다 어시' },
+  { id: 'death',   emoji: '💀', name: '죽어줘', desc: '최다 데스' },
+  { id: 'passive', emoji: '🐔', name: '꽁꽁이', desc: '최저 CC' },
 ]
 
 function buildBadgeCounts(games: Game[]) {
@@ -341,40 +318,38 @@ function buildBadgeCounts(games: Game[]) {
   return counts
 }
 
-function BadgeTable({ games, players }: { games: Game[]; players: PlayerSummary[] }) {
-  const leaderboard = useMemo(() => buildBadgeCounts(games), [games])
+function BadgeLeaderboard({ games, players }: { games: Game[]; players: PlayerSummary[] }) {
+  const lb = useMemo(() => buildBadgeCounts(games), [games])
+
   return (
-    <div className="overflow-x-auto -mx-4 sm:mx-0">
-      <table className="w-full text-sm min-w-[400px]">
-        <thead>
-          <tr className="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-700">
-            <th className="px-4 py-3 text-left">플레이어</th>
-            {BADGE_DEFS.map(b => (
-              <th key={b.id} className="px-2 py-3 text-center" title={b.name}>{b.emoji}</th>
-            ))}
-            <th className="px-4 py-3 text-right">합계</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-700">
-          {players.map(p => {
-            const my = leaderboard[p.game_name] ?? {}
-            const total = Object.values(my).reduce((a, b) => a + b, 0)
-            return (
-              <tr key={p.puuid} className="hover:bg-gray-800/50">
-                <td className="px-4 py-3 font-medium text-white text-sm">{p.game_name}</td>
-                {BADGE_DEFS.map(b => (
-                  <td key={b.id} className="px-2 py-3 text-center">
-                    {my[b.id]
-                      ? <span className="font-bold text-yellow-400">{my[b.id]}</span>
-                      : <span className="text-gray-600">—</span>}
-                  </td>
-                ))}
-                <td className="px-4 py-3 text-right font-bold text-purple-400">{total || '—'}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+    <div className="grid grid-cols-3 sm:grid-cols-3 gap-2">
+      {BADGE_DEFS.map(badge => {
+        // 이 뱃지 1위 플레이어
+        const ranked = players
+          .map(p => ({ name: p.game_name, count: lb[p.game_name]?.[badge.id] ?? 0 }))
+          .sort((a, b) => b.count - a.count)
+        const top = ranked[0]
+
+        return (
+          <div key={badge.id} className="bg-gray-800/60 rounded-xl p-3 border border-gray-700 flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-lg">{badge.emoji}</span>
+              <div>
+                <div className="text-xs font-bold text-gray-200">{badge.name}</div>
+                <div className="text-xs text-gray-500">{badge.desc}</div>
+              </div>
+            </div>
+            <div className="border-t border-gray-700 pt-1.5">
+              {ranked.map((p, i) => (
+                <div key={p.name} className={`flex justify-between items-center text-xs py-0.5 ${i === 0 && p.count > 0 ? 'text-yellow-400 font-bold' : 'text-gray-400'}`}>
+                  <span className="truncate">{i === 0 && p.count > 0 ? '🥇 ' : ''}{p.name.split(' ')[0]}</span>
+                  <span>{p.count || '—'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -385,9 +360,10 @@ interface Props {
   allGames: Game[]
   players: PlayerSummary[]
   initialNicknames: NicknameAward[]
+  champRoles: ChampRoleMap
 }
 
-export default function DashboardClient({ allGames, players, initialNicknames }: Props) {
+export default function DashboardClient({ allGames, players, initialNicknames, champRoles }: Props) {
   const availableDates = useMemo(() => {
     const s = new Set<string>()
     for (const g of allGames) s.add(toKSTDateString(g.played_at))
@@ -399,84 +375,58 @@ export default function DashboardClient({ allGames, players, initialNicknames }:
     return dates[dates.length - 1] ?? todayKST()
   })
 
-  // Sync when allGames changes
   useEffect(() => {
     const dates = allGames.map(g => toKSTDateString(g.played_at)).sort()
-    const latest = dates[dates.length - 1] ?? todayKST()
-    setSelectedDate(latest)
+    setSelectedDate(dates[dates.length - 1] ?? todayKST())
   }, [allGames])
 
-  // Animate on date change
   const [animKey, setAnimKey] = useState(0)
-  const handleDateChange = (d: string) => {
-    setSelectedDate(d)
-    setAnimKey(k => k + 1)
-  }
+  const handleDateChange = (d: string) => { setSelectedDate(d); setAnimKey(k => k + 1) }
 
   const filteredGames = useMemo(
     () => allGames.filter(g => toKSTDateString(g.played_at) === selectedDate),
     [allGames, selectedDate]
   )
 
-  // Sort players by config order
-  const orderedPlayers = useMemo(() => {
-    return [...players].sort((a, b) => {
-      const ai = TRACKED_PLAYERS.findIndex(p => p.puuid === a.puuid)
-      const bi = TRACKED_PLAYERS.findIndex(p => p.puuid === b.puuid)
-      return ai - bi
-    })
-  }, [players])
+  const orderedPlayers = useMemo(() => [...players].sort((a, b) => {
+    const ai = TRACKED_PLAYERS.findIndex(p => p.puuid === a.puuid)
+    const bi = TRACKED_PLAYERS.findIndex(p => p.puuid === b.puuid)
+    return ai - bi
+  }), [players])
 
   return (
     <div className="space-y-6">
 
-      {/* ── 고정 플레이어 프로필 ── */}
+      {/* ── 플레이어 프로필 (고정) ── */}
       <section>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           {orderedPlayers.map(p => (
-            <Link key={p.puuid} href={`/players/${encodeURIComponent(p.puuid)}`}>
-              <PlayerProfileCard player={p} allGames={allGames} />
+            <Link key={p.puuid} href={`/players/${encodeURIComponent(p.puuid)}`} className="block">
+              <PlayerProfileCard player={p} allGames={allGames} champRoles={champRoles} />
             </Link>
           ))}
         </div>
       </section>
 
       {/* ── 날짜 탐색 ── */}
-      <DateNavigator
-        selectedDate={selectedDate}
-        availableDates={availableDates}
-        onChange={handleDateChange}
-      />
+      <DateNavigator selectedDate={selectedDate} availableDates={availableDates} onChange={handleDateChange} />
 
-      {/* ── 날짜별 콘텐츠 (애니메이션) ── */}
-      <div
-        key={animKey}
-        className="space-y-4"
-        style={{ animation: 'fadeSlideIn 0.25s ease-out' }}
-      >
-        {/* MVP */}
+      {/* ── 날짜별 콘텐츠 ── */}
+      <div key={animKey} className="space-y-4" style={{ animation: 'fadeSlideIn 0.25s ease-out' }}>
         {filteredGames.length > 0 && <MvpCard games={filteredGames} />}
-
-        {/* 당일 게임 */}
         <section>
           <div className="flex items-center gap-2 mb-3">
             <h2 className="text-base font-semibold text-gray-300">당일 게임</h2>
-            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">
-              {filteredGames.length}경기
-            </span>
+            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">{filteredGames.length}경기</span>
           </div>
           {filteredGames.length === 0
             ? <p className="text-gray-500 text-center py-8 text-sm">해당 날짜에 기록된 게임이 없습니다</p>
-            : (
-              <div className="space-y-2">
-                {filteredGames.map(g => <GameRow key={g.id} game={g} />)}
-              </div>
-            )
+            : <div className="space-y-2">{filteredGames.map(g => <GameRow key={g.id} game={g} />)}</div>
           }
         </section>
       </div>
 
-      {/* ── 명예의 전당 (누적) ── */}
+      {/* ── 명예의 전당 ── */}
       <section>
         <div className="flex items-center gap-2 mb-3">
           <h2 className="text-base font-semibold text-gray-300">🏛️ 명예의 전당</h2>
@@ -485,16 +435,15 @@ export default function DashboardClient({ allGames, players, initialNicknames }:
         <HallOfFame nicknames={initialNicknames} />
       </section>
 
-      {/* ── 뱃지 리더보드 (누적) ── */}
+      {/* ── 뱃지 리더보드 ── */}
       <section>
         <div className="flex items-center gap-2 mb-3">
           <h2 className="text-base font-semibold text-gray-300">🏅 뱃지 리더보드</h2>
           <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">전체 기록</span>
         </div>
-        <div className="bg-gray-800/60 rounded-2xl border border-gray-700 overflow-hidden">
-          <BadgeTable games={allGames} players={orderedPlayers} />
-        </div>
+        <BadgeLeaderboard games={allGames} players={orderedPlayers} />
       </section>
+
     </div>
   )
 }
