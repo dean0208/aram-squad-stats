@@ -129,7 +129,7 @@ def get_current_account(session: requests.Session):
 
 
 def get_match_history(session: requests.Session, puuid: str, count: int = 200) -> list:
-    """매치 히스토리 - LCU endpoint 시도 순서대로"""
+    """매치 히스토리 - gameId 목록 반환"""
     endpoints = [
         f'/lol-match-history/v1/products/lol/{puuid}/matches?begIndex=0&endIndex={count}',
         f'/lol-match-history/v3/matchlist/account/{puuid}?begIndex=0&endIndex={count}',
@@ -144,6 +144,22 @@ def get_match_history(session: requests.Session, puuid: str, count: int = 200) -
         except Exception as e:
             print(f"  endpoint {ep} 실패: {e}")
     return []
+
+
+def get_game_detail(session: requests.Session, game_id: int) -> dict:
+    """gameId로 전체 참여자 데이터 조회"""
+    endpoints = [
+        f'/lol-match-history/v1/games/{game_id}',
+        f'/lol-match-history/v2/games/{game_id}',
+    ]
+    for ep in endpoints:
+        try:
+            data = lcu_get(session, ep)
+            if isinstance(data, dict) and data.get('participants'):
+                return data
+        except Exception as e:
+            print(f"  game detail {ep} 실패: {e}")
+    return {}
 
 
 def normalize_participant(p: dict):  # -> Optional[dict]
@@ -264,8 +280,26 @@ def run_debug(session: requests.Session, puuid: str):
     print(f"  총 {len(mayhem_all)}경기 발견")
     if mayhem_all:
         g = mayhem_all[0]
+        game_id = g.get('gameId')
         print(f"\n  최신 Mayhem 게임 raw dump:")
         print(json.dumps(g, indent=2, ensure_ascii=False)[:3000])
+
+        # 4. game detail 시도
+        print(f"\n[4] game detail 조회 (gameId={game_id})")
+        detail = get_game_detail(session, game_id)
+        if detail:
+            n_parts = len(detail.get('participants', []))
+            n_ids = len(detail.get('participantIdentities', []))
+            print(f"  participants: {n_parts}명")
+            print(f"  participantIdentities: {n_ids}명")
+            # 참여자 이름 출력
+            for ident in detail.get('participantIdentities', []):
+                player = ident.get('player', {})
+                print(f"    participantId:{ident.get('participantId')} gameName:{player.get('gameName')} tag:{player.get('tagLine')}")
+            print(f"\n  game detail raw dump:")
+            print(json.dumps(detail, indent=2, ensure_ascii=False)[:2000])
+        else:
+            print(f"  ✗ game detail 조회 실패 (두 엔드포인트 모두 실패)")
 
 # ─── 메인 ────────────────────────────────────────────────────────────────────
 
