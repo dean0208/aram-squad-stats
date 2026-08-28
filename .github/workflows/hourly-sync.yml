@@ -1,0 +1,16 @@
+name: Hourly Game Sync
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # every hour
+  workflow_dispatch:        # manual trigger too
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger sync
+        run: |
+          curl -s -X GET "${{ secrets.APP_URL }}/api/sync" \
+            -H "x-sync-secret: ${{ secrets.SYNC_SECRET }}" \
+            | jq .
