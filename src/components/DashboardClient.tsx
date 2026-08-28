@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Game, GameResult } from '@/lib/types'
@@ -16,12 +16,20 @@ function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-AU', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
+function toKSTDateString(iso: string): string {
+  // Returns "YYYY-MM-DD" in KST
+  const d = new Date(iso)
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+  return kst.toISOString().slice(0, 10)
+}
+
+function todayKST(): string {
+  return toKSTDateString(new Date().toISOString())
+}
+
+function formatDisplayDate(ymd: string): string {
+  const [y, m, d] = ymd.split('-')
+  return `${y}년 ${parseInt(m)}월 ${parseInt(d)}일`
 }
 
 function ChampionIcon({ name, size = 28 }: { name: string; size?: number }) {
@@ -36,17 +44,6 @@ function ChampionIcon({ name, size = 28 }: { name: string; size?: number }) {
       unoptimized
     />
   )
-}
-
-// ─── Period filter ────────────────────────────────────────────────────────────
-
-type Period = 5 | 10 | 30 | 0  // 0 = all
-
-const PERIOD_LABELS: Record<Period, string> = {
-  5: '최근 5경기',
-  10: '최근 10경기',
-  30: '최근 30경기',
-  0: '전체',
 }
 
 // ─── Badge Leaderboard ────────────────────────────────────────────────────────
@@ -78,7 +75,7 @@ function buildBadgeLeaderboard(games: Game[]): Record<string, Record<string, num
   return counts
 }
 
-// ─── PlayerCard (period-filtered) ────────────────────────────────────────────
+// ─── PlayerCard ────────────────────────────────────────────────────────────
 
 interface PlayerSummary {
   id: string
@@ -118,7 +115,6 @@ function computePlayerStats(summary: PlayerSummary, games: Game[]) {
 
 function GameRow({ game }: { game: Game }) {
   const medals = calculateMedals(game.game_results)
-  // Build a map: resultId -> medals
   const resultMedals: Record<string, typeof medals> = {}
   for (const m of medals) {
     for (const w of m.winners) {
@@ -147,7 +143,6 @@ function GameRow({ game }: { game: Game }) {
           >
             {game.our_team_win ? 'WIN' : 'LOSS'}
           </span>
-          <span className="text-gray-400 text-sm">{formatDate(game.played_at)}</span>
           <span className="text-gray-500 text-sm">{formatDuration(game.duration_seconds)}</span>
         </div>
       </div>
@@ -166,7 +161,6 @@ function GameRow({ game }: { game: Game }) {
               <div className="ml-1 text-xs font-bold text-purple-400">
                 {result.contribution_score}
               </div>
-              {/* Medal icons */}
               {myMedals.length > 0 && (
                 <div className="flex gap-0.5">
                   {myMedals.map(({ medal }) => (
@@ -190,7 +184,7 @@ function GameRow({ game }: { game: Game }) {
 
 // ─── Hall of Fame ─────────────────────────────────────────────────────────────
 
-function HallOfFame({ nicknames, period }: { nicknames: NicknameAward[]; period: Period }) {
+function HallOfFame({ nicknames }: { nicknames: NicknameAward[] }) {
   if (nicknames.length === 0) {
     return (
       <p className="text-gray-500 text-center py-8">
@@ -262,6 +256,101 @@ function BadgeTable({ games, players }: { games: Game[]; players: PlayerSummary[
   )
 }
 
+// ─── Date Navigator ───────────────────────────────────────────────────────────
+
+interface DateNavigatorProps {
+  selectedDate: string      // "YYYY-MM-DD"
+  availableDates: Set<string>
+  onChange: (date: string) => void
+}
+
+function DateNavigator({ selectedDate, availableDates, onChange }: DateNavigatorProps) {
+  const [showPicker, setShowPicker] = useState(false)
+  const pickerRef = useRef<HTMLInputElement>(null)
+
+  const sortedDates = useMemo(
+    () => [...availableDates].sort(),
+    [availableDates],
+  )
+
+  const currentIndex = sortedDates.indexOf(selectedDate)
+  const hasPrev = currentIndex > 0
+  const hasNext = currentIndex < sortedDates.length - 1
+
+  const goPrev = () => hasPrev && onChange(sortedDates[currentIndex - 1])
+  const goNext = () => hasNext && onChange(sortedDates[currentIndex + 1])
+
+  const handleCalendarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value // "YYYY-MM-DD"
+    if (v) onChange(v)
+    setShowPicker(false)
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      {/* Prev arrow */}
+      <button
+        onClick={goPrev}
+        disabled={!hasPrev}
+        className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+        title="이전 날"
+      >
+        ‹
+      </button>
+
+      {/* Date display + calendar */}
+      <div className="relative">
+        <button
+          onClick={() => {
+            setShowPicker(true)
+            setTimeout(() => pickerRef.current?.showPicker?.(), 0)
+          }}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 hover:border-purple-500 transition-all text-white font-medium text-sm"
+        >
+          <span>📅</span>
+          <span>{formatDisplayDate(selectedDate)}</span>
+        </button>
+        {/* Hidden native date input */}
+        <input
+          ref={pickerRef}
+          type="date"
+          value={selectedDate}
+          onChange={handleCalendarChange}
+          onBlur={() => setShowPicker(false)}
+          className="absolute inset-0 opacity-0 cursor-pointer"
+          style={{ pointerEvents: showPicker ? 'auto' : 'none' }}
+        />
+      </div>
+
+      {/* Next arrow */}
+      <button
+        onClick={goNext}
+        disabled={!hasNext}
+        className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+        title="다음 날"
+      >
+        ›
+      </button>
+
+      {/* Today shortcut */}
+      {selectedDate !== todayKST() && availableDates.has(todayKST()) && (
+        <button
+          onClick={() => onChange(todayKST())}
+          className="px-3 py-2 rounded-lg bg-purple-900 border border-purple-700 text-purple-300 text-xs font-medium hover:bg-purple-800 transition-all"
+        >
+          오늘
+        </button>
+      )}
+
+      {availableDates.size > 0 && (
+        <span className="text-xs text-gray-500">
+          {currentIndex >= 0 ? `${currentIndex + 1} / ${sortedDates.length}일` : '해당 날짜 없음'}
+        </span>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Dashboard Client Component ─────────────────────────────────────────
 
 interface DashboardClientProps {
@@ -275,61 +364,41 @@ export default function DashboardClient({
   players,
   initialNicknames,
 }: DashboardClientProps) {
-  const [period, setPeriod] = useState<Period>(10)
-  const [filteredGames, setFilteredGames] = useState<Game[]>([])
-  const [nicknames, setNicknames] = useState<NicknameAward[]>(initialNicknames)
-  const [loadingNicknames, setLoadingNicknames] = useState(false)
+  // Build set of dates that have games (KST)
+  const availableDates = useMemo(() => {
+    const s = new Set<string>()
+    for (const g of allGames) s.add(toKSTDateString(g.played_at))
+    return s
+  }, [allGames])
 
-  // Apply period filter locally
+  // Default: most recent date with games (or today)
+  const defaultDate = useMemo(() => {
+    const sorted = [...availableDates].sort()
+    return sorted[sorted.length - 1] ?? todayKST()
+  }, [availableDates])
+
+  const [selectedDate, setSelectedDate] = useState<string>(defaultDate)
+
+  // Update default when data loads
   useEffect(() => {
-    if (period === 0) {
-      setFilteredGames(allGames)
-    } else {
-      setFilteredGames(allGames.slice(0, period))
-    }
-  }, [period, allGames])
+    setSelectedDate(defaultDate)
+  }, [defaultDate])
 
-  // Reload nicknames from API when period changes
-  const fetchNicknames = useCallback(async (p: Period) => {
-    setLoadingNicknames(true)
-    try {
-      const url = p === 0 ? '/api/players/badges' : `/api/players/badges?limit=${p}`
-      const res = await fetch(url)
-      const data = await res.json()
-      if (data.nicknames) setNicknames(data.nicknames)
-    } catch {
-      // keep existing
-    } finally {
-      setLoadingNicknames(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchNicknames(period)
-  }, [period, fetchNicknames])
-
-  const periods: Period[] = [5, 10, 30, 0]
+  // Filter games by selected KST date
+  const filteredGames = useMemo(() => {
+    return allGames.filter((g) => toKSTDateString(g.played_at) === selectedDate)
+  }, [allGames, selectedDate])
 
   return (
     <div className="space-y-8">
-      {/* Period Filter */}
-      <div className="flex flex-wrap gap-2">
-        {periods.map((p) => (
-          <button
-            key={p}
-            onClick={() => setPeriod(p)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              period === p
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 border border-gray-700'
-            }`}
-          >
-            {PERIOD_LABELS[p]}
-          </button>
-        ))}
-      </div>
+      {/* Date Navigator */}
+      <DateNavigator
+        selectedDate={selectedDate}
+        availableDates={availableDates}
+        onChange={setSelectedDate}
+      />
 
-      {/* Player Cards */}
+      {/* Player Cards — based on selected date */}
       <section>
         <h2 className="text-xl font-semibold text-gray-300 mb-4">Players</h2>
         {players.length === 0 ? (
@@ -377,28 +446,16 @@ export default function DashboardClient({
         )}
       </section>
 
-      {/* Hall of Fame – Nickname Awards */}
-      <section>
-        <div className="flex items-center gap-3 mb-4">
-          <h2 className="text-xl font-semibold text-gray-300">🏛️ 명예의 전당</h2>
-          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded-full border border-gray-700">
-            {PERIOD_LABELS[period]} 기준
-          </span>
-          {loadingNicknames && <span className="text-xs text-gray-500 animate-pulse">로딩 중…</span>}
-        </div>
-        <HallOfFame nicknames={nicknames} period={period} />
-      </section>
-
-      {/* Recent Games */}
+      {/* Games of the day */}
       <section>
         <h2 className="text-xl font-semibold text-gray-300 mb-4">
-          Recent Games
+          당일 게임
           <span className="ml-2 text-sm text-gray-500 font-normal">
             ({filteredGames.length}경기)
           </span>
         </h2>
         {filteredGames.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">No games recorded yet</p>
+          <p className="text-gray-500 text-center py-8">해당 날짜에 기록된 게임이 없습니다</p>
         ) : (
           <div className="space-y-3">
             {filteredGames.map((game) => (
@@ -408,7 +465,18 @@ export default function DashboardClient({
         )}
       </section>
 
-      {/* All-time Badge Leaderboard – always full */}
+      {/* Hall of Fame — always full history */}
+      <section>
+        <div className="flex items-center gap-3 mb-4">
+          <h2 className="text-xl font-semibold text-gray-300">🏛️ 명예의 전당</h2>
+          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded-full border border-gray-700">
+            전체 누적 기준
+          </span>
+        </div>
+        <HallOfFame nicknames={initialNicknames} />
+      </section>
+
+      {/* All-time Badge Leaderboard */}
       <section>
         <div className="flex items-center gap-3 mb-4">
           <h2 className="text-xl font-semibold text-gray-300">🏅 뱃지 리더보드</h2>

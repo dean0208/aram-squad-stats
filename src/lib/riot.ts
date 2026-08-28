@@ -38,6 +38,7 @@ export interface RiotParticipant {
 export interface RiotMatchDetail {
   metadata: { matchId: string; participants: string[] }
   info: {
+    queueId: number
     gameStartTimestamp: number
     gameDuration: number
     participants: RiotParticipant[]
@@ -46,8 +47,12 @@ export interface RiotMatchDetail {
 
 // ─── Riot API Fetchers ────────────────────────────────────────────────────────
 
+// Supported queue IDs: 480 = Swiftplay, 450 = ARAM, 2400 = ARAM Mayhem (증강)
+const SUPPORTED_QUEUES = [480, 450, 2400]
+
 export async function fetchRecentMatches(puuid: string, count = 20): Promise<string[]> {
-  const url = `${RIOT_BASE}/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=480&count=${count}`
+  // Fetch without queue filter then dedupe — single call is simpler than multiple
+  const url = `${RIOT_BASE}/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?count=${count}`
   const res = await fetch(url, { headers: riotHeaders() })
   if (!res.ok) {
     const text = await res.text()
@@ -206,6 +211,10 @@ export async function syncNewGames(): Promise<{ synced: number; skipped: number 
       )
 
       if (trackedInMatch.length < TRACKED_PLAYERS.length) continue
+
+      // Skip unsupported queue types
+      const queueId = match.info?.queueId ?? 0
+      if (!SUPPORTED_QUEUES.includes(queueId)) continue
 
       // Skip games before DATA_START_DATE
       const gameDate = new Date(info.gameStartTimestamp)
