@@ -16,13 +16,13 @@ const TAG_KO: Record<string, { label: string; emoji: string; damageType: 'AD' | 
   Assassin: { label: '암살자', emoji: '🗡️', damageType: 'AD' },
 }
 
-async function getChampRoles(): Promise<Record<string, { label: string; emoji: string }>> {
+async function getChampRoles(): Promise<Record<string, { label: string; emoji: string; damageType: 'AD' | 'AP' | 'Tank' | 'Utility' }>> {
   try {
     const res = await fetch(`${DDRAGON_BASE}/data/en_US/champion.json`, { next: { revalidate: 86400 } })
     const data = await res.json()
-    const map: Record<string, { label: string; emoji: string }> = {}
+    const map: Record<string, { label: string; emoji: string; damageType: 'AD' | 'AP' | 'Tank' | 'Utility' }> = {}
     for (const champ of Object.values(data.data) as { id: string; tags: string[] }[]) {
-      const primaryTag = champ.tags[0]
+      const primaryTag = ['Marksman', 'Mage', 'Assassin', 'Fighter', 'Tank', 'Support'].find(tag => champ.tags.includes(tag)) ?? champ.tags[0]
       map[champ.id] = TAG_KO[primaryTag] ?? { label: '올라운더', emoji: '⚡', damageType: 'Utility' }
     }
     return map

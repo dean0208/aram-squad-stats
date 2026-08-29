@@ -59,7 +59,7 @@ export function getBestChampionComposition(games: ChampionCompositionGame[]): Be
     if (game.win) current.wins++
     stats.set(key, current)
   }
-  const ranked = [...stats.values()].sort((a, b) => {
+  const ranked = [...stats.values()].filter(stat => stat.games >= 3).sort((a, b) => {
     const rateDiff = b.wins / b.games - a.wins / a.games
     return rateDiff || b.games - a.games || a.champions.join('|').localeCompare(b.champions.join('|'))
   })

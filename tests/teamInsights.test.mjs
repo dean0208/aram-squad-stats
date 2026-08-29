@@ -27,11 +27,21 @@ test('가장 승률이 높은 4인 챔피언 조합을 집계한다', () => {
     { win: true, members: [{ playerId: 'a', championName: '럭스' }, { playerId: 'b', championName: '진' }] },
     { win: false, members: [{ playerId: 'a', championName: '럭스' }, { playerId: 'b', championName: '진' }] },
     { win: true, members: [{ playerId: 'a', championName: '말파이트' }, { playerId: 'b', championName: '징크스' }] },
+    { win: true, members: [{ playerId: 'a', championName: '말파이트' }, { playerId: 'b', championName: '징크스' }] },
+    { win: false, members: [{ playerId: 'a', championName: '말파이트' }, { playerId: 'b', championName: '징크스' }] },
   ])
 
   assert.deepEqual(best?.champions, ['말파이트', '징크스'])
-  assert.equal(best?.wins, 1)
-  assert.equal(best?.games, 1)
+  assert.equal(best?.wins, 2)
+  assert.equal(best?.games, 3)
+})
+
+test('3경기 미만인 조합은 최고 조합 후보에서 제외한다', () => {
+  const best = getBestChampionComposition([
+    { win: true, members: [{ playerId: 'a', championName: '가렌' }] },
+    { win: true, members: [{ playerId: 'a', championName: '가렌' }] },
+  ])
+  assert.equal(best, null)
 })
 
 test('플레이어별 역할 팀 승률을 계산한다', () => {
