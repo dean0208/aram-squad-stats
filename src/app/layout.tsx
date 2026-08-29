@@ -20,8 +20,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html lang="ko" className={`${geistSans.variable} ${geistMono.variable} h-full`}>
-      <body className="toss-theme min-h-full flex flex-col bg-[#f6f7f9] text-[#191f28] antialiased">
-        <nav className="border-b border-[#e5e8eb] bg-white px-4 py-3.5 sm:px-6 sm:py-4">
+      <body className="toss-theme min-h-full flex flex-col bg-[#eef1f5] text-[#191f28] antialiased">
+        <nav className="border-b border-[#dfe4ea] bg-[#f8fafc] px-4 py-3.5 sm:px-6 sm:py-4">
           <a href="/" className="text-lg font-bold text-blue-500 hover:text-blue-600 transition-colors">
             마 좀 치나?
           </a>

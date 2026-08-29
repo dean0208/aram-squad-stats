@@ -385,7 +385,7 @@ function HallOfFame({ nicknames }: { nicknames: NicknameAward[] }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
       {nicknames.map(award => (
-        <div key={award.id} className={`bg-gradient-to-br ${award.color} rounded-xl p-3 border ${award.borderColor}`}>
+        <div key={award.id} className={`toss-hall-card toss-hall-${award.borderColor.replace('border-', '').replace('-700', '')} bg-gradient-to-br ${award.color} rounded-xl p-3 border ${award.borderColor}`}>
           <div className="text-2xl mb-1">{award.emoji}</div>
           <div className={`text-xs font-bold ${award.textColor}`}>{award.name}</div>
           <div className="text-xs text-gray-400 mb-1 leading-tight">{award.description}</div>
