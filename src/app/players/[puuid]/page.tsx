@@ -10,6 +10,7 @@ import type { ChampionReport, Game } from '@/lib/types'
 import { computeNicknames } from '@/lib/nicknames'
 import type { NicknameAward } from '@/lib/nicknames'
 import { analyzeRecentFiveGames } from '@/lib/playerInsights'
+import { calculateFormTrend, type FormTrend } from '@/lib/formTrend'
 
 function ChampionIcon({ name, size = 32 }: { name: string; size?: number }) {
   const safeName = name.replace(/[^a-zA-Z0-9]/g, '')
@@ -22,6 +23,37 @@ function ChampionIcon({ name, size = 32 }: { name: string; size?: number }) {
       className="rounded"
       unoptimized
     />
+  )
+}
+
+function FormTrendCard({ scores, trend }: { scores: number[]; trend: FormTrend }) {
+  if (!scores.length) return null
+  return (
+    <div className="rounded-2xl border border-violet-200 bg-violet-50 px-5 py-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-violet-950">📈 요즘 폼 어때?</h2>
+          <p className="mt-0.5 text-xs text-violet-700">최근 {scores.length}경기 성능 지수 흐름</p>
+        </div>
+        <div className="text-right">
+          <div className={`text-3xl font-black leading-none ${trend.delta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {trend.delta > 0 ? '+' : ''}{trend.delta}
+          </div>
+          <div className="mt-1 text-xs text-violet-700">직전 구간 대비</div>
+        </div>
+      </div>
+      <div className="mt-4 flex h-24 items-end gap-1.5" aria-label="최근 10경기 성능 지수 그래프">
+        {scores.map((score, index) => (
+          <div key={`${score}-${index}`} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+            <span className="text-[10px] font-semibold text-violet-700">{Math.round(score)}</span>
+            <div className="w-full rounded-t-md bg-violet-300" style={{ height: `${Math.max(8, Math.min(100, score))}%` }} />
+            <span className="text-[10px] text-violet-600">{index === 0 ? '최근' : `-${index + 1}`}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-sm font-medium leading-relaxed text-violet-950">{trend.message}</p>
+      <p className="mt-1 text-xs text-violet-700">최근 평균 {trend.recentAverage}점 · 비교 기준 {trend.baselineAverage}점</p>
+    </div>
   )
 }
 
@@ -284,6 +316,15 @@ export default async function PlayerReportPage({
     })
     .slice(0, 5)
   const recentAnalysis = analyzeRecentFiveGames(recentFiveSnapshots, roleLabel)
+  const allFormScores = allGames
+    .slice()
+    .sort((a, b) => new Date(b.played_at).getTime() - new Date(a.played_at).getTime())
+    .flatMap(game => {
+      const result = game.game_results.find(item => item.players?.puuid === decodedPuuid)
+      return result ? [result.perf_score] : []
+    })
+  const formScores = allFormScores.slice(0, 10)
+  const formTrend = calculateFormTrend(formScores, allFormScores.slice(10, 20))
 
   const totalGames = results?.length ?? 0
   const totalWins = championReport.reduce((a, c) => a + c.wins, 0)
@@ -340,6 +381,8 @@ export default async function PlayerReportPage({
           </div>
         </div>
       )}
+
+      <FormTrendCard scores={formScores} trend={formTrend} />
 
       {recentFiveSnapshots.length > 0 && (
         <div className="bg-gray-800 rounded-2xl border border-gray-700 px-5 py-4">
