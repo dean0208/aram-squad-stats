@@ -13,7 +13,7 @@ import { getGrowthStatus } from '@/lib/growth'
 import { selectMvp } from '@/lib/mvp'
 import { toDisplayContributionScore } from '@/lib/displayScore'
 import { assignPlayerTitles, type PlayerTitle } from '@/lib/playerTitles'
-import { getAugmentHighlight } from '@/lib/augmentHighlight'
+import { getAugmentHighlight, getAugmentName } from '@/lib/augmentHighlight'
 import { getGameCommentary } from '@/lib/gameCommentary'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -121,12 +121,12 @@ function PlayerProfileCard({ player, allGames, champRoles, title }: {
       {/* Header */}
       <div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <div className="font-bold text-white text-sm leading-tight">{getPlayerDisplayName(player.puuid, player.game_name)}</div>
-          <span className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-[11px] font-semibold leading-tight text-blue-600">
+          <div className="font-bold text-white text-base leading-tight">{getPlayerDisplayName(player.puuid, player.game_name)}</div>
+          <span className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-xs font-semibold leading-tight text-blue-600">
             {title.emoji} {title.label}
           </span>
         </div>
-        <div className="text-xs text-gray-500">#{player.tag_line}</div>
+        <div className="text-sm text-gray-500">#{player.tag_line}</div>
       </div>
 
       {/* Champion highlights: stacked rows stay readable in narrow cards */}
@@ -134,9 +134,9 @@ function PlayerProfileCard({ player, allGames, champRoles, title }: {
         <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-yellow-900/40 bg-yellow-950/20 px-2 py-1">
           <ChampionIcon name={stats.mostChamp} size={32} />
           <div className="min-w-0">
-            <div className="text-xs leading-tight text-gray-500">모스트</div>
+            <div className="text-sm leading-tight text-gray-500">모스트</div>
           </div>
-          <div className="text-right text-xs leading-tight text-gray-400">
+          <div className="text-right text-sm leading-tight text-gray-400">
             <div>{stats.champCount}판</div>
             <div className="font-semibold text-yellow-300">승률 {stats.champWinRate}%</div>
           </div>
@@ -146,9 +146,9 @@ function PlayerProfileCard({ player, allGames, champRoles, title }: {
           <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-purple-900/40 bg-purple-950/20 px-2 py-1">
             <ChampionIcon name={stats.bestChamp.name} size={32} />
             <div className="min-w-0">
-              <div className="text-xs leading-tight text-gray-500">기여도 👍</div>
+              <div className="text-sm leading-tight text-gray-500">기여도 👍</div>
             </div>
-            <div className="whitespace-nowrap text-right text-xs text-gray-400">
+            <div className="whitespace-nowrap text-right text-sm text-gray-400">
               평균 <span className="font-semibold text-purple-300">{toDisplayContributionScore(stats.bestChamp.avgContribution)}점</span>
             </div>
           </div>
@@ -158,9 +158,9 @@ function PlayerProfileCard({ player, allGames, champRoles, title }: {
           <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-red-900/40 bg-red-950/20 px-2 py-1">
             <ChampionIcon name={stats.worstChamp.name} size={32} />
             <div className="min-w-0">
-              <div className="text-xs leading-tight text-gray-500">기여도 👎</div>
+              <div className="text-sm leading-tight text-gray-500">기여도 👎</div>
             </div>
-            <div className="whitespace-nowrap text-right text-xs text-gray-400">
+            <div className="whitespace-nowrap text-right text-sm text-gray-400">
               평균 <span className="font-semibold text-red-300">{toDisplayContributionScore(stats.worstChamp.avgContribution)}점</span>
             </div>
           </div>
@@ -169,11 +169,11 @@ function PlayerProfileCard({ player, allGames, champRoles, title }: {
 
       {/* Role tag */}
       <div className="flex flex-wrap gap-1">
-        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-500">
+        <span className="text-sm px-2 py-0.5 rounded-full bg-gray-800 text-gray-500">
           최근 10경기
         </span>
         <span
-          className={`text-xs px-2 py-0.5 rounded-full ${growthStatusUi.className}`}
+          className={`text-sm px-2 py-0.5 rounded-full ${growthStatusUi.className}`}
           title="전체 게임 평균 기여도 대비 최근 10게임 성장세"
         >
           {growthStatusUi.icon} {stats.growthStatus}
@@ -182,10 +182,10 @@ function PlayerProfileCard({ player, allGames, champRoles, title }: {
 
       {/* Average contribution: keep the only numeric summary compact */}
       <div className="min-w-0 rounded-lg bg-gray-900/50 px-2 py-1 mt-auto">
-        <div className="text-xs leading-tight text-gray-500">평균 기여도</div>
-        <div className="text-sm font-semibold text-blue-400">{toDisplayContributionScore(stats.avgContrib)}점</div>
+        <div className="text-sm leading-tight text-gray-500">평균 기여도</div>
+        <div className="text-base font-semibold text-blue-400">{toDisplayContributionScore(stats.avgContrib)}점</div>
       </div>
-      <div className="flex items-center justify-between text-xs font-medium text-blue-500">
+      <div className="flex items-center justify-between text-sm font-medium text-blue-500">
         <span>상세 프로필</span>
         <span aria-hidden="true">→</span>
       </div>
@@ -208,14 +208,14 @@ function MvpCard({ games, championNames }: { games: Game[]; championNames: Champ
       <div className="flex min-w-0 flex-col items-center gap-1.5">
         <ChampionIcon name={mvpResult.champion_name} size={44} />
         <div className="min-w-0">
-          <div className="text-xs text-amber-400 font-semibold uppercase tracking-wider">오늘의 MVP</div>
-          <div className="text-white font-bold text-lg leading-tight">{mvpResult.players ? getPlayerDisplayName(mvpResult.players.puuid, mvpResult.players.game_name) : '—'}</div>
-          <div className="text-sm text-amber-300">{getChampionDisplayName(mvpResult.champion_name, championNames)} · {mvpResult.kills}/{mvpResult.deaths}/{mvpResult.assists}</div>
+          <div className="text-sm text-amber-400 font-semibold uppercase tracking-wider">오늘의 MVP</div>
+          <div className="text-white font-bold text-xl leading-tight">{mvpResult.players ? getPlayerDisplayName(mvpResult.players.puuid, mvpResult.players.game_name) : '—'}</div>
+          <div className="text-base text-amber-300">{getChampionDisplayName(mvpResult.champion_name, championNames)} · {mvpResult.kills}/{mvpResult.deaths}/{mvpResult.assists}</div>
         </div>
       </div>
       <div className="shrink-0 text-center">
-        <div className="text-2xl font-black text-amber-300">{toDisplayContributionScore(mvpResult.perf_score)}</div>
-        <div className="text-xs text-amber-500">기여도 지수 / 100</div>
+        <div className="text-3xl font-black text-amber-300">{toDisplayContributionScore(mvpResult.perf_score)}</div>
+        <div className="text-sm text-amber-500">기여도 지수 / 100</div>
       </div>
     </div>
   )
@@ -236,9 +236,9 @@ function DailyAugmentCard({ games }: { games: Game[] }) {
 
   return (
     <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-center">
-      <div className="text-xs font-semibold text-blue-500">✨ 오늘의 증강</div>
-      <div className="mt-1 text-base font-bold text-blue-700">증강 #{highlight.id}</div>
-      <div className="mt-0.5 text-xs text-blue-600">
+      <div className="text-sm font-semibold text-blue-500">✨ 오늘의 증강</div>
+      <div className="mt-1 text-lg font-bold text-blue-700">{getAugmentName(highlight.id)}</div>
+      <div className="mt-0.5 text-sm text-blue-600">
         {highlight.wins === highlight.games ? '승리한 판에서 가장 빛난 픽' : '오늘 승패에 가장 큰 영향을 준 픽'}
       </div>
     </div>

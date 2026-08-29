@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { getAugmentHighlight } from '../src/lib/augmentHighlight.ts'
+import { getAugmentHighlight, getAugmentName } from '../src/lib/augmentHighlight.ts'
+
+test('증강 ID 2095를 하이 롤러로 표시한다', () => {
+  assert.equal(getAugmentName(2095), '하이 롤러 (High Roller)')
+})
+
+test('이름을 모르는 증강은 ID를 보존한다', () => {
+  assert.equal(getAugmentName(9999), '증강 #9999')
+})
 
 test('승패 차이가 가장 큰 증강을 오늘의 증강으로 고른다', () => {
   const highlight = getAugmentHighlight([
