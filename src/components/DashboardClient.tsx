@@ -193,7 +193,7 @@ function MvpCard({ games }: { games: Game[] }) {
       </div>
       <div className="text-right shrink-0">
         <div className="text-2xl font-black text-amber-300">{toDisplayContributionScore(mvpResult.perf_score)}</div>
-        <div className="text-xs text-amber-500">실제 기여도 / 100</div>
+        <div className="text-xs text-amber-500">기여도 지수 / 100</div>
       </div>
     </div>
   )
