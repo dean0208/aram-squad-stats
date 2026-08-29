@@ -13,6 +13,7 @@ import { getGrowthStatus } from '@/lib/growth'
 import { selectMvp } from '@/lib/mvp'
 import { toDisplayContributionScore } from '@/lib/displayScore'
 import { assignPlayerTitles, type PlayerTitle } from '@/lib/playerTitles'
+import { getGameCommentary } from '@/lib/gameCommentary'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -236,12 +237,26 @@ function GameRow({ game }: { game: Game }) {
     .sort((a: GameResult, b: GameResult) => b.contribution_score - a.contribution_score)
   const mvp = sorted[0]
   const wins = game.our_team_win
+  const commentary = getGameCommentary({
+    our_team_win: game.our_team_win,
+    game_results: game.game_results
+      .filter(result => result.players)
+      .map(result => ({
+        name: getPlayerDisplayName(result.players!.puuid, result.players!.game_name),
+        contribution_score: result.contribution_score,
+        damage_dealt: result.damage_dealt,
+        damage_taken: result.damage_taken,
+        healing: result.healing,
+        assists: result.assists,
+        cc_score: result.cc_score,
+      })),
+  })
 
   return (
     <div className={`rounded-xl border overflow-hidden ${wins ? 'border-green-800/60' : 'border-red-900/60'}`}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 p-3 sm:p-4 text-left hover:bg-white/5 transition-colors"
+        className="w-full flex flex-wrap items-center gap-3 p-3 sm:p-4 text-left hover:bg-white/5 transition-colors"
       >
         <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${wins ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
           {wins ? 'WIN' : 'LOSS'}
@@ -260,6 +275,9 @@ function GameRow({ game }: { game: Game }) {
           </div>
         )}
         <span className={`shrink-0 text-gray-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>▾</span>
+        <span className={`basis-full order-last text-xs ${wins ? 'text-green-600' : 'text-red-600'}`}>
+          💬 {commentary}
+        </span>
       </button>
 
       {open && (
