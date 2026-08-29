@@ -33,7 +33,15 @@ function ChampionBreakdownTable({ champions, championNames }: {
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="champion-breakdown">
+      {champions.length > 3 && (
+        <details className="champion-toggle border-b border-gray-700">
+          <summary className="px-5 py-3 text-xs font-medium text-blue-500 hover:bg-blue-50/50">
+            전체 챔피언 {champions.length}개 보기 · TOP3 외 {champions.length - 3}개
+          </summary>
+        </details>
+      )}
+      <div className="champion-table-wrap overflow-x-auto">
       <table className="w-full">
         <thead>
           <tr className="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-700">
@@ -47,8 +55,8 @@ function ChampionBreakdownTable({ champions, championNames }: {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-700">
-          {champions.map((c) => (
-            <tr key={c.champion_name} className="hover:bg-gray-750 transition-colors">
+          {champions.map((c, index) => (
+            <tr key={c.champion_name} className={`${index >= 3 ? 'champion-extra-row ' : ''}hover:bg-gray-750 transition-colors`}>
               <td className="px-6 py-4">
                 <div className="flex items-center gap-3">
                   <ChampionIcon name={c.champion_name} size={36} />
@@ -82,6 +90,7 @@ function ChampionBreakdownTable({ champions, championNames }: {
           ))}
         </tbody>
       </table>
+    </div>
     </div>
   )
 }
@@ -369,21 +378,21 @@ export default async function PlayerReportPage({
         </div>
       ) : (
         <div className="space-y-6">
-          <section className="bg-gray-800 rounded-2xl border border-green-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-700">
+          <details open className="champion-section bg-gray-800 rounded-2xl border border-green-200 overflow-hidden">
+            <summary className="px-5 py-4 border-b border-gray-700 hover:bg-green-50/50">
               <h2 className="text-lg font-semibold text-green-500">🔥 좀 치노</h2>
               <p className="text-xs text-gray-500 mt-1">기여도 지수 50점 이상</p>
-            </div>
+            </summary>
             <ChampionBreakdownTable champions={strongChampions} championNames={championNames} />
-          </section>
+          </details>
 
-          <section className="bg-gray-800 rounded-2xl border border-red-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-700">
+          <details open className="champion-section bg-gray-800 rounded-2xl border border-red-200 overflow-hidden">
+            <summary className="px-5 py-4 border-b border-gray-700 hover:bg-red-50/50">
               <h2 className="text-lg font-semibold text-red-500">😅 별론데?</h2>
               <p className="text-xs text-gray-500 mt-1">기여도 지수 50점 미만</p>
-            </div>
+            </summary>
             <ChampionBreakdownTable champions={weakChampions} championNames={championNames} />
-          </section>
+          </details>
         </div>
       )}
     </div>

@@ -128,3 +128,18 @@ body {
 .toss-theme .toss-hall-card .text-purple-300 { color: #6941a5 !important; }
 .toss-theme .toss-hall-card .text-rose-300 { color: #be3448 !important; }
 .toss-theme .toss-hall-card .text-cyan-300 { color: #087ea4 !important; }
+
+.toss-theme .champion-toggle summary,
+.toss-theme .champion-section summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.toss-theme .champion-toggle summary::-webkit-details-marker,
+.toss-theme .champion-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.toss-theme .champion-toggle:not([open]) ~ .champion-table-wrap .champion-extra-row {
+  display: none;
+}
