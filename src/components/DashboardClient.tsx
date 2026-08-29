@@ -154,6 +154,9 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
 
       {/* Role tag */}
       <div className="flex flex-wrap gap-1">
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-500">
+          최근 10경기
+        </span>
         <span
           className={`text-xs px-2 py-0.5 rounded-full ${growthStatusUi.className}`}
           title="전체 게임 평균 기여도 대비 최근 10게임 성장세"
