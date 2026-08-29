@@ -46,11 +46,18 @@ test('3경기 미만인 조합은 최고 조합 후보에서 제외한다', () =
 
 test('플레이어별 역할 팀 승률을 계산한다', () => {
   const best = getBestRoleByPlayer([
-    { win: true, members: [{ playerId: 'interest', role: '원딜' }] },
-    { win: false, members: [{ playerId: 'interest', role: '원딜' }] },
+    ...Array.from({ length: 9 }, () => ({ win: false, members: [{ playerId: 'interest', role: '원딜' }] })),
     { win: true, members: [{ playerId: 'interest', role: '탱커' }] },
+    ...Array.from({ length: 9 }, () => ({ win: true, members: [{ playerId: 'interest', role: '탱커' }] })),
   ])
 
   assert.equal(best.get('interest')?.role, '탱커')
   assert.equal(best.get('interest')?.winRate, 100)
+})
+
+test('10경기 미만인 포지션은 최고 포지션 후보에서 제외한다', () => {
+  const best = getBestRoleByPlayer(
+    Array.from({ length: 9 }, () => ({ win: true, members: [{ playerId: 'interest', role: '원딜' }] })),
+  )
+  assert.equal(best.has('interest'), false)
 })

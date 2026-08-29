@@ -81,10 +81,12 @@ export function getBestRoleByPlayer(games: RoleGame[]): Map<string, BestRole> {
   }
 
   return new Map([...stats.entries()].map(([playerId, roles]) => {
-    const best = [...roles.entries()].sort((a, b) =>
+    const eligibleRoles = [...roles.entries()].filter(([, value]) => value.games >= 10)
+    if (!eligibleRoles.length) return [playerId, null] as const
+    const best = eligibleRoles.sort((a, b) =>
       b[1].wins / b[1].games - a[1].wins / a[1].games || b[1].games - a[1].games
     )[0]
     const [role, value] = best
     return [playerId, { role, ...value, winRate: Math.round((value.wins / value.games) * 100) }]
-  }))
+  }).filter((entry): entry is [string, BestRole] => entry[1] !== null))
 }
