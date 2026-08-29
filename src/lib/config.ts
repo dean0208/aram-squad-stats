@@ -28,7 +28,7 @@ export const TRACKED_PUUIDS = new Set(TRACKED_PLAYERS.map((p) => p.puuid))
 export const PLAYER_DISPLAY_NAMES: Record<string, string> = {
   [TRACKED_PLAYERS[0].puuid]: '째지',
   [TRACKED_PLAYERS[1].puuid]: '허개굴',
-  [TRACKED_PLAYERS[2].puuid]: '말자허',
+  [TRACKED_PLAYERS[2].puuid]: '허말자씨',
   [TRACKED_PLAYERS[3].puuid]: '권선비',
 }
 

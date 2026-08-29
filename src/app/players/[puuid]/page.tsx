@@ -41,45 +41,45 @@ function ChampionBreakdownTable({ champions, championNames }: {
           </summary>
         </details>
       )}
-      <div className="champion-table-wrap overflow-x-auto">
-      <table className="w-full">
+      <div className="champion-table-wrap">
+      <table className="w-full table-fixed">
         <thead>
           <tr className="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-700">
-            <th className="px-6 py-3 text-left">Champion</th>
-            <th className="px-4 py-3 text-center">Games</th>
-            <th className="px-4 py-3 text-center">Win%</th>
-            <th className="px-4 py-3 text-center">Avg Perf</th>
-            <th className="px-4 py-3 text-center">Avg Contribution</th>
-            <th className="px-4 py-3 text-center">Avg KDA</th>
-            <th className="px-4 py-3 text-center">K/D/A</th>
+            <th className="w-[27%] px-2 py-3 text-left sm:w-auto sm:px-6">챔피언</th>
+            <th className="w-[13%] px-1 py-3 text-center sm:w-auto sm:px-4">경기</th>
+            <th className="w-[15%] px-1 py-3 text-center sm:w-auto sm:px-4">승률</th>
+            <th className="w-[17%] px-1 py-3 text-center sm:w-auto sm:px-4">평균 성능</th>
+            <th className="hidden px-4 py-3 text-center sm:table-cell">평균 기여도</th>
+            <th className="hidden px-4 py-3 text-center sm:table-cell">평균 KDA</th>
+            <th className="w-[28%] px-1 py-3 text-center sm:w-auto sm:px-4">킬/데스/어시</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-700">
           {champions.map((c, index) => (
             <tr key={c.champion_name} className={`${index >= 3 ? 'champion-extra-row ' : ''}hover:bg-gray-750 transition-colors`}>
-              <td className="px-6 py-4">
-                <div className="flex items-center gap-3">
+              <td className="px-2 py-3 sm:px-6 sm:py-4">
+                <div className="flex flex-col items-center gap-1 sm:flex-row sm:gap-3">
                   <ChampionIcon name={c.champion_name} size={36} />
-                  <span className="text-white font-medium">{getChampionDisplayName(c.champion_name, championNames)}</span>
+                  <span className="max-w-full text-center text-xs font-medium leading-tight text-white sm:text-left sm:text-base">{getChampionDisplayName(c.champion_name, championNames)}</span>
                 </div>
               </td>
-              <td className="px-4 py-4 text-center text-gray-300">{c.games}</td>
-              <td className="px-4 py-4 text-center">
+              <td className="px-1 py-3 text-center text-gray-300 sm:px-4 sm:py-4">{c.games}</td>
+              <td className="px-1 py-3 text-center sm:px-4 sm:py-4">
                 <span className={`font-semibold ${c.win_rate >= 50 ? 'text-green-400' : 'text-red-400'}`}>
                   {c.win_rate}%
                 </span>
-                <div className="text-xs text-gray-500">{c.wins}W/{c.games - c.wins}L</div>
+                <div className="text-xs text-gray-500">{c.wins}승/{c.games - c.wins}패</div>
               </td>
-              <td className="px-4 py-4 text-center">
+              <td className="px-1 py-3 text-center sm:px-4 sm:py-4">
                 <span className="text-blue-400 font-semibold">{toDisplayContributionScore(c.avg_perf_score)}</span>
               </td>
-              <td className="px-4 py-4 text-center">
+              <td className="hidden px-4 py-4 text-center sm:table-cell">
                 <span className="text-purple-400 font-semibold">{toDisplayContributionScore(c.avg_contribution_score)}</span>
               </td>
-              <td className="px-4 py-4 text-center">
+              <td className="hidden px-4 py-4 text-center sm:table-cell">
                 <span className="text-gray-300 font-semibold">{c.avg_kda}</span>
               </td>
-              <td className="px-4 py-4 text-center text-sm">
+              <td className="px-1 py-3 text-center text-xs sm:px-4 sm:py-4 sm:text-sm">
                 <span className="text-green-400">{c.avg_kills}</span>
                 <span className="text-gray-500 mx-1">/</span>
                 <span className="text-red-400">{c.avg_deaths}</span>
@@ -266,20 +266,20 @@ export default async function PlayerReportPage({
     <div className="space-y-6">
       {/* Back */}
       <Link href="/" className="text-gray-400 hover:text-white transition-colors text-sm">
-        ← Back to Dashboard
+        ← 대시보드로 돌아가기
       </Link>
 
       {/* Player Header */}
-      <div className="bg-gray-800 rounded-2xl border border-gray-700 p-6">
-        <div className="flex items-start justify-between">
+      <div className="bg-gray-800 rounded-2xl border border-gray-700 p-4 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white">{getPlayerDisplayName(player.puuid, player.game_name)}</h1>
-            <div className="text-gray-400 text-lg">#{player.tag_line}</div>
+            <h1 className="text-2xl font-bold text-white sm:text-3xl">{getPlayerDisplayName(player.puuid, player.game_name)}</h1>
+            <div className="text-gray-400 text-base sm:text-lg">#{player.tag_line}</div>
           </div>
-          <div className="grid grid-cols-3 gap-6 text-center">
+          <div className="grid w-full grid-cols-3 gap-3 text-center sm:w-auto sm:gap-6">
             <div>
               <div className="text-2xl font-bold text-white">{totalGames}</div>
-              <div className="text-xs text-gray-400 uppercase tracking-wide">Games</div>
+              <div className="text-sm text-gray-400 tracking-wide">게임 수</div>
             </div>
             <div>
               <div
@@ -287,13 +287,13 @@ export default async function PlayerReportPage({
               >
                 {overallWinRate}%
               </div>
-              <div className="text-xs text-gray-400 uppercase tracking-wide">Win Rate</div>
+              <div className="text-sm text-gray-400 tracking-wide">승률</div>
             </div>
             <div>
               <div className="text-2xl font-bold text-purple-400">
                 {championReport.length}
               </div>
-              <div className="text-xs text-gray-400 uppercase tracking-wide">Champions</div>
+              <div className="text-sm text-gray-400 tracking-wide">챔피언 수</div>
             </div>
           </div>
         </div>
@@ -335,36 +335,36 @@ export default async function PlayerReportPage({
         <div className="bg-orange-950 rounded-2xl border border-orange-700 p-6">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-2xl">🔍</span>
-            <h2 className="text-xl font-bold text-orange-300">Suspects</h2>
+            <h2 className="text-xl font-bold text-orange-300">의심 챔피언</h2>
           </div>
           <p className="text-orange-200 text-sm mb-4">
-            Good personal stats but low win rate — possible team composition issue or champion mismatch
+            개인 기록은 좋지만 승률이 낮아요 — 팀 조합이나 챔피언 궁합을 확인해보세요
           </p>
           <div className="space-y-2">
             {suspects.map((c) => (
               <div
                 key={c.champion_name}
-                className="flex items-center gap-4 bg-orange-900/30 rounded-xl px-4 py-3"
+                className="flex flex-col gap-3 bg-orange-900/30 rounded-xl px-4 py-3 sm:flex-row sm:items-center sm:gap-4"
               >
                 <ChampionIcon name={c.champion_name} size={36} />
-                <div className="flex-1">
+                <div className="min-w-0 flex-1">
                   <div className="font-semibold text-white">{getChampionDisplayName(c.champion_name, championNames)}</div>
                   <div className="text-xs text-orange-300">
-                    {c.games} games • {c.high_perf_losses} high-perf losses
+                    {c.games}경기 · 고성능 패배 {c.high_perf_losses}회
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4 text-center text-sm">
+                <div className="grid w-full grid-cols-3 gap-2 text-center text-sm sm:w-auto sm:gap-4">
                   <div>
                     <div className="font-bold text-red-400">{c.win_rate}%</div>
-                    <div className="text-xs text-gray-400">Win Rate</div>
+                    <div className="text-xs text-gray-400">승률</div>
                   </div>
                   <div>
                     <div className="font-bold text-blue-400">{c.avg_perf_score}</div>
-                    <div className="text-xs text-gray-400">Avg Perf</div>
+                    <div className="text-xs text-gray-400">평균 성능</div>
                   </div>
                   <div>
                     <div className="font-bold text-gray-300">{c.avg_kda}</div>
-                    <div className="text-xs text-gray-400">KDA</div>
+                    <div className="text-xs text-gray-400">평균 KDA</div>
                   </div>
                 </div>
               </div>
