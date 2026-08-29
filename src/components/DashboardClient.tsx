@@ -107,7 +107,7 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
   }[stats.growthStatus]
 
   return (
-    <div className="bg-gray-800/60 rounded-2xl p-4 border border-gray-700 flex flex-col gap-3 h-full hover:border-purple-600/50 transition-colors">
+    <div className="bg-gray-800/60 rounded-2xl p-3 sm:p-4 border border-gray-700 flex flex-col gap-2 h-full hover:border-purple-600/50 transition-colors">
       {/* Header */}
       <div>
         <div className="font-bold text-white text-sm leading-tight">{getPlayerDisplayName(player.puuid, player.game_name)}</div>
@@ -116,36 +116,36 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
 
       {/* Champion highlights: stacked rows stay readable in narrow cards */}
       <div className="space-y-1.5">
-        <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-yellow-900/40 bg-yellow-950/20 px-2 py-1.5">
+        <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-yellow-900/40 bg-yellow-950/20 px-2 py-1">
           <ChampionIcon name={stats.mostChamp} size={32} />
           <div className="min-w-0">
-            <div className="text-[10px] leading-tight text-gray-500">모스트</div>
+            <div className="text-xs leading-tight text-gray-500">모스트</div>
           </div>
-          <div className="text-right text-[10px] leading-tight text-gray-400">
+          <div className="text-right text-xs leading-tight text-gray-400">
             <div>{stats.champCount}판</div>
             <div className="font-semibold text-yellow-300">승률 {stats.champWinRate}%</div>
           </div>
         </div>
 
         {stats.bestChamp && (
-          <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-purple-900/40 bg-purple-950/20 px-2 py-1.5">
+          <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-purple-900/40 bg-purple-950/20 px-2 py-1">
             <ChampionIcon name={stats.bestChamp.name} size={32} />
             <div className="min-w-0">
-              <div className="text-[10px] leading-tight text-gray-500">기여도 👍</div>
+              <div className="text-xs leading-tight text-gray-500">기여도 👍</div>
             </div>
-            <div className="whitespace-nowrap text-right text-[10px] text-gray-400">
+            <div className="whitespace-nowrap text-right text-xs text-gray-400">
               평균 <span className="font-semibold text-purple-300">{toDisplayContributionScore(stats.bestChamp.avgContribution)}점</span>
             </div>
           </div>
         )}
 
         {stats.worstChamp && (
-          <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-red-900/40 bg-red-950/20 px-2 py-1.5">
+          <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-red-900/40 bg-red-950/20 px-2 py-1">
             <ChampionIcon name={stats.worstChamp.name} size={32} />
             <div className="min-w-0">
-              <div className="text-[10px] leading-tight text-gray-500">기여도 👎</div>
+              <div className="text-xs leading-tight text-gray-500">기여도 👎</div>
             </div>
-            <div className="whitespace-nowrap text-right text-[10px] text-gray-400">
+            <div className="whitespace-nowrap text-right text-xs text-gray-400">
               평균 <span className="font-semibold text-red-300">{toDisplayContributionScore(stats.worstChamp.avgContribution)}점</span>
             </div>
           </div>
@@ -154,7 +154,7 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
 
       {/* Role tag */}
       <div className="flex flex-wrap gap-1">
-        <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-500">
+        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-500">
           최근 10경기
         </span>
         <span
@@ -166,8 +166,8 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
       </div>
 
       {/* Average contribution: keep the only numeric summary compact */}
-      <div className="min-w-0 rounded-lg bg-gray-900/50 px-2 py-1.5 mt-auto">
-        <div className="text-[10px] leading-tight text-gray-500">평균 기여도</div>
+      <div className="min-w-0 rounded-lg bg-gray-900/50 px-2 py-1 mt-auto">
+        <div className="text-xs leading-tight text-gray-500">평균 기여도</div>
         <div className="text-sm font-semibold text-blue-400">{toDisplayContributionScore(stats.avgContrib)}점</div>
       </div>
     </div>
