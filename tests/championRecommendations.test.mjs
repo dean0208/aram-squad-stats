@@ -25,3 +25,16 @@ test('모든 챔피언을 많이 해봤으면 추천하지 않는다', () => {
     { id: 'Lux', name: '럭스', tags: ['Mage'] },
   ]), null)
 })
+
+test('탱커 플레이어에게 가렌보다 전투 개시형 탱커를 우선 추천한다', () => {
+  const recommendation = recommendChampion([
+    { champion_name: 'Ornn', games: 5, avg_perf_score: 70, avg_contribution_score: 70 },
+  ], [
+    { id: 'Ornn', name: '오른', tags: ['Tank', 'Fighter'] },
+    { id: 'Garen', name: '가렌', tags: ['Fighter', 'Tank'] },
+    { id: 'Malphite', name: '말파이트', tags: ['Tank', 'Fighter'] },
+  ])
+
+  assert.equal(recommendation?.championId, 'Malphite')
+  assert.match(recommendation?.reason ?? '', /전투 개시|한타|탱커/)
+})

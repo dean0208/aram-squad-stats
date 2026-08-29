@@ -9,6 +9,7 @@ import { recommendChampion } from '@/lib/championRecommendations'
 import type { ChampionReport, Game } from '@/lib/types'
 import { computeNicknames } from '@/lib/nicknames'
 import type { NicknameAward } from '@/lib/nicknames'
+import { analyzeRecentFiveGames } from '@/lib/playerInsights'
 
 function ChampionIcon({ name, size = 32 }: { name: string; size?: number }) {
   const safeName = name.replace(/[^a-zA-Z0-9]/g, '')
@@ -253,6 +254,37 @@ export default async function PlayerReportPage({
 
   const recommendation = recommendChampion(championReport, championCatalog)
 
+  const primaryChampion = championReport[0]
+  const primaryCatalogEntry = championCatalog.find(champion => champion.id === primaryChampion?.champion_name)
+  const roleLabel = ({
+    Marksman: '원딜', Mage: '마법사', Tank: '탱커', Fighter: '브루저',
+    Support: '서포터', Assassin: '암살자',
+  } as Record<string, string>)[primaryCatalogEntry?.tags[0] ?? ''] ?? '플레이어'
+  const recentFiveSnapshots = allGames
+    .slice()
+    .sort((a, b) => new Date(b.played_at).getTime() - new Date(a.played_at).getTime())
+    .flatMap(game => {
+      const playerResult = game.game_results.find(result => result.players?.puuid === decodedPuuid)
+      if (!playerResult) return []
+      const teamResults = game.game_results.filter(result => result.players)
+      const average = (field: 'damage_dealt' | 'assists' | 'deaths') =>
+        teamResults.reduce((sum, result) => sum + result[field], 0) / Math.max(1, teamResults.length)
+      return [{
+        champion: playerResult.champion_name,
+        win: game.our_team_win,
+        kills: playerResult.kills,
+        deaths: playerResult.deaths,
+        assists: playerResult.assists,
+        damage: playerResult.damage_dealt,
+        teamDamageAverage: average('damage_dealt'),
+        teamAssistsAverage: average('assists'),
+        teamDeathsAverage: average('deaths'),
+        perf: playerResult.perf_score,
+      }]
+    })
+    .slice(0, 5)
+  const recentAnalysis = analyzeRecentFiveGames(recentFiveSnapshots, roleLabel)
+
   const totalGames = results?.length ?? 0
   const totalWins = championReport.reduce((a, c) => a + c.wins, 0)
   const overallWinRate = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0
@@ -306,6 +338,20 @@ export default async function PlayerReportPage({
             <ChampionIcon name={recommendation.championId} size={40} />
             <p className="text-sm font-medium text-gray-700 leading-relaxed">{recommendation.reason}</p>
           </div>
+        </div>
+      )}
+
+      {recentFiveSnapshots.length > 0 && (
+        <div className="bg-gray-800 rounded-2xl border border-gray-700 px-5 py-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-white">📈 {recentAnalysis.headline}</h2>
+            <span className="shrink-0 rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">세부 지표 분석</span>
+          </div>
+          <ul className="space-y-2">
+            {recentAnalysis.details.map(detail => (
+              <li key={detail} className="text-sm leading-relaxed text-gray-300">• {detail}</li>
+            ))}
+          </ul>
         </div>
       )}
 
