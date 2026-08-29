@@ -22,6 +22,12 @@ export interface RiotParticipant {
   totalHeal: number
   totalTimeCCDealt: number
   goldEarned: number
+  item0?: number
+  item1?: number
+  item2?: number
+  item3?: number
+  item4?: number
+  item5?: number
   // Augment fields (ARAM 2024+)
   playerAugment1?: number
   playerAugment2?: number
@@ -104,6 +110,11 @@ function extractAugmentIds(p: RiotParticipant): number[] {
     if (val && val > 0) ids.push(val)
   }
   return ids
+}
+
+function extractItemIds(p: RiotParticipant): number[] {
+  return [p.item0, p.item1, p.item2, p.item3, p.item4, p.item5]
+    .filter((id): id is number => typeof id === 'number' && id > 0)
 }
 
 // ─── Main Sync Logic ──────────────────────────────────────────────────────────
@@ -247,6 +258,7 @@ export async function syncNewGames(): Promise<{ synced: number; skipped: number 
           gold_earned: p.goldEarned,
           cc_score: p.totalTimeCCDealt,
           augment_ids: augmentIds,
+          item_ids: extractItemIds(p),
           perf_score: Math.round(perf * 10) / 10,
           contribution_score: contribution,
         })

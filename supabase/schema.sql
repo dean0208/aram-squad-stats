@@ -36,6 +36,7 @@ create table if not exists game_results (
   gold_earned int default 0,
   cc_score real default 0,
   augment_ids int[] default '{}',
+  item_ids int[] not null default '{}',
   -- Computed scores (stored for fast queries)
   perf_score real default 0,
   contribution_score real default 0,

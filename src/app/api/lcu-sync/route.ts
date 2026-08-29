@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-import { TRACKED_PLAYERS, DDRAGON_VERSION, DDRAGON_BASE } from '@/lib/config'
+import { TRACKED_PLAYERS, DDRAGON_BASE } from '@/lib/config'
 import { calcPerfScore, calcContributionScore } from '@/lib/riot'
 import type { RiotParticipant } from '@/lib/riot'
 
@@ -22,6 +22,7 @@ interface LcuParticipant {
   goldEarned: number
   totalTimeCCDealt: number
   augments: number[]     // augment IDs (없으면 [])
+  itemIds?: number[]      // completed item IDs (없으면 [])
 }
 
 interface LcuGame {
@@ -195,6 +196,7 @@ export async function POST(request: NextRequest) {
           gold_earned: p.goldEarned,
           cc_score: p.totalTimeCCDealt,
           augment_ids: lcuP.augments ?? [],
+          item_ids: lcuP.itemIds ?? [],
           perf_score: Math.round(perf * 10) / 10,
           contribution_score: contribution,
         })

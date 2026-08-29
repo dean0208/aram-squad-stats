@@ -198,6 +198,12 @@ def normalize_game_detail(raw: dict) -> dict:
             if v and int(v) > 0:
                 augments.append(int(v))
 
+        item_ids = [
+            int(stats.get(f'item{i}', 0) or 0)
+            for i in range(6)
+            if int(stats.get(f'item{i}', 0) or 0) > 0
+        ]
+
         participants.append({
             'puuid':                       riot_puuid,
             'gameName':                    game_name,
@@ -214,6 +220,7 @@ def normalize_game_detail(raw: dict) -> dict:
             'goldEarned':                  int(stats.get('goldEarned', 0)),
             'totalTimeCCDealt':            int(stats.get('totalTimeCCDealt', 0)),
             'augments':                    augments,
+            'itemIds':                     item_ids,
         })
 
     return {

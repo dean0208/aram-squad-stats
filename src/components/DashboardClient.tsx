@@ -282,6 +282,8 @@ function GameRow({ game }: { game: Game }) {
     <div className={`rounded-xl border overflow-hidden ${wins ? 'border-green-800/60' : 'border-red-900/60'}`}>
       <button
         onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        aria-label={`${formatDuration(game.duration_seconds)} 게임 상세 ${open ? '접기' : '보기'}`}
         className="w-full flex flex-wrap items-center gap-3 p-3 sm:p-4 text-left hover:bg-white/5 transition-colors"
       >
         <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${wins ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
@@ -400,14 +402,15 @@ function DateNavigator({ selectedDate, availableDates, onChange }: {
 }) {
   const sorted = useMemo(() => [...availableDates].sort(), [availableDates])
   const idx = sorted.indexOf(selectedDate)
+  const latestDate = sorted[sorted.length - 1]
   const pickerRef = useRef<HTMLInputElement>(null)
 
   return (
     <div className="flex items-center gap-2">
       <button onClick={() => idx > 0 && onChange(sorted[idx - 1])} disabled={idx <= 0}
-        className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-lg">‹</button>
+        aria-label="이전 날짜" className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-lg">‹</button>
       <div className="relative">
-        <button onClick={() => setTimeout(() => pickerRef.current?.showPicker?.(), 0)}
+        <button onClick={() => setTimeout(() => pickerRef.current?.showPicker?.(), 0)} aria-label="날짜 선택"
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-800 border border-gray-700 hover:border-purple-500 text-white font-medium text-sm transition-all">
           <span>📅</span><span>{formatDisplayDate(selectedDate)}</span>
         </button>
@@ -416,7 +419,9 @@ function DateNavigator({ selectedDate, availableDates, onChange }: {
           className="absolute inset-0 opacity-0 cursor-pointer" />
       </div>
       <button onClick={() => idx < sorted.length - 1 && onChange(sorted[idx + 1])} disabled={idx >= sorted.length - 1}
-        className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-lg">›</button>
+        aria-label="다음 날짜" className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-lg">›</button>
+      <button onClick={() => latestDate && onChange(latestDate)} disabled={!latestDate || selectedDate === latestDate}
+        className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 transition-all hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40">최신</button>
       {idx >= 0 && <span className="text-xs text-gray-500 hidden sm:block">{idx + 1} / {sorted.length}일</span>}
     </div>
   )
@@ -483,8 +488,6 @@ function BadgeLeaderboard({ games, players }: { games: Game[]; players: PlayerSu
             return { name, count: lb[name]?.[badge.id] ?? 0 }
           })
           .sort((a, b) => b.count - a.count)
-        const top = ranked[0]
-
         return (
           <div key={badge.id} className="bg-gray-800/60 rounded-xl p-3 border border-gray-700 flex flex-col gap-1.5">
             <div className="flex items-center gap-1.5">
@@ -533,7 +536,8 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
 
   useEffect(() => {
     const dates = allGames.map(g => toKSTDateString(g.played_at)).sort()
-    setSelectedDate(dates[dates.length - 1] ?? todayKST())
+    const timer = window.setTimeout(() => setSelectedDate(dates[dates.length - 1] ?? todayKST()), 0)
+    return () => window.clearTimeout(timer)
   }, [allGames])
 
   const [animKey, setAnimKey] = useState(0)

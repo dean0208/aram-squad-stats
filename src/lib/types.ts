@@ -22,6 +22,7 @@ export interface GameResult {
   perf_score: number
   contribution_score: number
   augment_ids: number[]
+  item_ids?: number[]
   players: Player | null
 }
 
