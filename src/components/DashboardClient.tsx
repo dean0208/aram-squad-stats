@@ -526,8 +526,8 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
       {/* ── 명예의 전당 ── */}
       <section>
         <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-base font-semibold text-gray-300">🏛️ 명예의 전당</h2>
-          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">전체 누적</span>
+          <h2 className="text-base font-semibold text-gray-300">🏛️ 우리들의 레전드관</h2>
+          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">역대 기록</span>
         </div>
         <HallOfFame nicknames={initialNicknames} />
       </section>
@@ -535,8 +535,8 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
       {/* ── 뱃지 리더보드 ── */}
       <section>
         <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-base font-semibold text-gray-300">🏅 뱃지 리더보드</h2>
-          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">전체 기록</span>
+          <h2 className="text-base font-semibold text-gray-300">🏅 훈장 수집 랭킹</h2>
+          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">누가 제일 많이 모았나</span>
         </div>
         <BadgeLeaderboard games={allGames} players={orderedPlayers} />
       </section>
