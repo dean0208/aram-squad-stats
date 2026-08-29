@@ -355,7 +355,14 @@ function BestCompositionCard({ games, championNames }: { games: Game[]; champion
       championName: result.champion_name,
     })),
   })))
-  if (!best) return null
+  if (!best) {
+    return (
+      <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
+        <div className="text-sm font-semibold text-indigo-700">🤝 가장 승률이 높았던 4인 조합</div>
+        <p className="mt-2 text-sm text-indigo-600">같은 4인 조합으로 3경기 이상 플레이한 기록이 아직 없어요.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
