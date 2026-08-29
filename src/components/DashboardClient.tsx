@@ -15,6 +15,7 @@ import { toDisplayContributionScore } from '@/lib/displayScore'
 import { assignPlayerTitles, type PlayerTitle } from '@/lib/playerTitles'
 import { getAugmentHighlight, getAugmentName } from '@/lib/augmentHighlight'
 import { getGameCommentary } from '@/lib/gameCommentary'
+import { analyzeTeamComposition, getBestChampionComposition, getBestRoleByPlayer, type DamageType } from '@/lib/teamInsights'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ function ChampionIcon({ name, size = 32 }: { name: string; size?: number }) {
 
 // ─── Player stat computation ──────────────────────────────────────────────────
 
-type ChampRoleMap = Record<string, { label: string; emoji: string }>
+type ChampRoleMap = Record<string, { label: string; emoji: string; damageType?: DamageType }>
 
 function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRoleMap) {
   const entries = allGames.flatMap(g =>
@@ -247,7 +248,7 @@ function DailyAugmentCard({ games }: { games: Game[] }) {
 
 // ─── Collapsible Game Row ──────────────────────────────────────────────────────
 
-function GameRow({ game }: { game: Game }) {
+function GameRow({ game, champRoles }: { game: Game; champRoles: ChampRoleMap }) {
   const [open, setOpen] = useState(false)
   const medals = useMemo(() => calculateMedals(game.game_results), [game])
   const resultMedals: Record<string, typeof medals> = {}
@@ -276,6 +277,13 @@ function GameRow({ game }: { game: Game }) {
         assists: result.assists,
         cc_score: result.cc_score,
       })),
+  })
+  const compositionInsights = analyzeTeamComposition({
+    win: game.our_team_win,
+    members: game.game_results.filter(result => result.players).map(result => ({
+      championName: result.champion_name,
+      damageType: champRoles[result.champion_name]?.damageType ?? 'Utility',
+    })),
   })
 
   return (
@@ -306,6 +314,9 @@ function GameRow({ game }: { game: Game }) {
         <span className={`basis-full order-last text-xs ${wins ? 'text-green-600' : 'text-red-600'}`}>
           💬 {commentary}
         </span>
+        <span className="basis-full order-last text-xs text-gray-500">
+          🧩 {compositionInsights.join(' ')}
+        </span>
       </button>
 
       {open && (
@@ -332,6 +343,64 @@ function GameRow({ game }: { game: Game }) {
           </div>
         </Link>
       )}
+    </div>
+  )
+}
+
+function BestCompositionCard({ games, championNames }: { games: Game[]; championNames: ChampionNameMap }) {
+  const best = getBestChampionComposition(games.map(game => ({
+    win: game.our_team_win,
+    members: game.game_results.filter(result => result.players).map(result => ({
+      playerId: result.players!.puuid,
+      championName: result.champion_name,
+    })),
+  })))
+  if (!best) return null
+
+  return (
+    <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
+      <div className="text-sm font-semibold text-indigo-700">🤝 가장 승률이 높았던 4인 조합</div>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        {best.champions.map(champion => (
+          <div key={champion} className="flex w-16 flex-col items-center gap-1 text-center">
+            <ChampionIcon name={champion} size={40} />
+            <span className="text-xs font-medium leading-tight text-indigo-950">{getChampionDisplayName(champion, championNames)}</span>
+          </div>
+        ))}
+        <div className="ml-auto text-right">
+          <div className="text-2xl font-black text-indigo-700">{best.winRate}%</div>
+          <div className="text-xs text-indigo-600">{best.wins}승 {best.games - best.wins}패 · {best.games}경기</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BestRoleCard({ games, players, champRoles }: { games: Game[]; players: PlayerSummary[]; champRoles: ChampRoleMap }) {
+  const bestByPlayer = getBestRoleByPlayer(games.map(game => ({
+    win: game.our_team_win,
+    members: game.game_results.filter(result => result.players).map(result => ({
+      playerId: result.players!.puuid,
+      role: champRoles[result.champion_name]?.label ?? '올라운더',
+    })),
+  })))
+  const rows = players.map(player => ({
+    name: getPlayerDisplayName(player.puuid, player.game_name),
+    best: bestByPlayer.get(player.puuid),
+  })).filter(row => row.best)
+  if (!rows.length) return null
+
+  return (
+    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+      <div className="text-sm font-semibold text-emerald-700">🎯 플레이어별 최고 팀 승률 포지션</div>
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {rows.map(({ name, best }) => (
+          <div key={name} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
+            <span className="text-sm font-semibold text-emerald-950">{name}</span>
+            <span className="text-sm text-emerald-700"><b>{best!.role}</b> 잡을 때 {best!.winRate}% <span className="text-xs">({best!.games}경기)</span></span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -613,9 +682,11 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
           </div>
           {filteredGames.length === 0
             ? <p className="text-gray-500 text-center py-8 text-sm">해당 날짜에 기록된 게임이 없습니다</p>
-            : <div className="space-y-2">{filteredGames.map(g => <GameRow key={g.id} game={g} />)}</div>
+            : <div className="space-y-2">{filteredGames.map(g => <GameRow key={g.id} game={g} champRoles={champRoles} />)}</div>
           }
         </section>
+        <BestCompositionCard games={allGames} championNames={championNames} />
+        <BestRoleCard games={allGames} players={orderedPlayers} champRoles={champRoles} />
       </div>
 
       {/* ── 명예의 전당 ── */}

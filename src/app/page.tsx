@@ -7,13 +7,13 @@ import type { Game } from '@/lib/types'
 import { computeNicknames } from '@/lib/nicknames'
 
 // DDragon tag → Korean role
-const TAG_KO: Record<string, { label: string; emoji: string }> = {
-  Marksman: { label: '원딜',   emoji: '🏹' },
-  Mage:     { label: '마법사', emoji: '🔮' },
-  Tank:     { label: '탱커',   emoji: '🛡️' },
-  Fighter:  { label: '브루저', emoji: '⚡' },
-  Support:  { label: '서포터', emoji: '💊' },
-  Assassin: { label: '암살자', emoji: '🗡️' },
+const TAG_KO: Record<string, { label: string; emoji: string; damageType: 'AD' | 'AP' | 'Tank' | 'Utility' }> = {
+  Marksman: { label: '원딜',   emoji: '🏹', damageType: 'AD' },
+  Mage:     { label: '마법사', emoji: '🔮', damageType: 'AP' },
+  Tank:     { label: '탱커',   emoji: '🛡️', damageType: 'Tank' },
+  Fighter:  { label: '브루저', emoji: '⚡', damageType: 'AD' },
+  Support:  { label: '서포터', emoji: '💊', damageType: 'Utility' },
+  Assassin: { label: '암살자', emoji: '🗡️', damageType: 'AD' },
 }
 
 async function getChampRoles(): Promise<Record<string, { label: string; emoji: string }>> {
@@ -23,7 +23,7 @@ async function getChampRoles(): Promise<Record<string, { label: string; emoji: s
     const map: Record<string, { label: string; emoji: string }> = {}
     for (const champ of Object.values(data.data) as { id: string; tags: string[] }[]) {
       const primaryTag = champ.tags[0]
-      map[champ.id] = TAG_KO[primaryTag] ?? { label: '올라운더', emoji: '⚡' }
+      map[champ.id] = TAG_KO[primaryTag] ?? { label: '올라운더', emoji: '⚡', damageType: 'Utility' }
     }
     return map
   } catch {
