@@ -201,9 +201,9 @@ function MvpCard({ games, championNames }: { games: Game[]; championNames: Champ
   if (!mvpResult) return null
 
   return (
-    <div className="bg-gradient-to-r from-amber-950 to-yellow-950 border border-amber-700 rounded-2xl p-4 flex items-center gap-4">
+    <div className="bg-gradient-to-r from-amber-950 to-yellow-950 border border-amber-700 rounded-2xl p-4 flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-center">
       <div className="text-3xl">👑</div>
-      <div className="flex items-center gap-3 flex-1 min-w-0">
+      <div className="flex min-w-0 flex-col items-center gap-1.5">
         <ChampionIcon name={mvpResult.champion_name} size={44} />
         <div className="min-w-0">
           <div className="text-xs text-amber-400 font-semibold uppercase tracking-wider">오늘의 MVP</div>
@@ -211,7 +211,7 @@ function MvpCard({ games, championNames }: { games: Game[]; championNames: Champ
           <div className="text-sm text-amber-300">{getChampionDisplayName(mvpResult.champion_name, championNames)} · {mvpResult.kills}/{mvpResult.deaths}/{mvpResult.assists}</div>
         </div>
       </div>
-      <div className="text-right shrink-0">
+      <div className="shrink-0 text-center">
         <div className="text-2xl font-black text-amber-300">{toDisplayContributionScore(mvpResult.perf_score)}</div>
         <div className="text-xs text-amber-500">기여도 지수 / 100</div>
       </div>
@@ -327,20 +327,20 @@ function DailyPerformance({ allGames, filteredGames, players }: {
   return (
     <div className="bg-gray-800/60 rounded-2xl border border-gray-700 overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-700">
+      <div className="px-4 py-3 border-b border-gray-700 text-center">
         <div className="text-sm font-semibold text-gray-300">📊 오늘은 누가 좀 치싸뿌노</div>
         <div className="text-xs text-gray-500 mt-0.5">전체 평균과 비교한 오늘의 상승·하락세</div>
       </div>
 
       {/* Two intuitive highlights, without score clutter */}
-      <div className="grid grid-cols-2 divide-x divide-gray-700">
-        <div className="p-4">
+      <div className="grid grid-cols-2 divide-x divide-gray-700 text-center">
+        <div className="flex flex-col items-center p-4">
           <div className="text-xs text-gray-500 mb-2">임마 좀 치네</div>
           <div className="text-2xl mb-1">🔥</div>
           <div className="text-sm font-bold text-green-400 truncate" title={topCarry.name}>{topCarry.name}</div>
           <div className="text-xs text-green-300 mt-1">{topCarry.diff >= 0 ? '뜨급다 뜨거워' : '오늘 가장 선방'}</div>
         </div>
-        <div className="p-4">
+        <div className="flex flex-col items-center p-4">
           <div className="text-xs text-gray-500 mb-2">임마 걸배이고</div>
           <div className="text-2xl mb-1">🧊</div>
           <div className="text-sm font-bold text-red-400 truncate" title={topAnchor.name}>{topAnchor.name}</div>
