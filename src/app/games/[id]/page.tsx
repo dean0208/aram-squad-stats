@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createServerClient } from '@/lib/supabase'
 import { DDRAGON_VERSION, getPlayerDisplayName } from '@/lib/config'
+import { toDisplayContributionScore } from '@/lib/displayScore'
 import type { Game, GameResult } from '@/lib/types'
 import { calculateMedals } from '@/lib/medals'
 
@@ -236,15 +237,15 @@ export default async function GameDetailPage({
                   </td>
                   <td className="px-4 py-4 text-right">
                     <div className="text-sm font-bold text-blue-400">
-                      {result.perf_score.toFixed(1)}
+                      {toDisplayContributionScore(result.perf_score)}
                     </div>
-                    <ScoreBar value={result.perf_score} />
+                    <ScoreBar value={toDisplayContributionScore(result.perf_score)} />
                   </td>
                   <td className="px-4 py-4 text-right">
                     <div className="text-sm font-bold text-purple-400">
-                      {result.contribution_score}
+                      {toDisplayContributionScore(result.contribution_score)}
                     </div>
-                    <ScoreBar value={result.contribution_score} />
+                    <ScoreBar value={toDisplayContributionScore(result.contribution_score)} />
                   </td>
                 </tr>
               ))}

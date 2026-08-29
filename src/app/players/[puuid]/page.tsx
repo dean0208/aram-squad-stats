@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createServerClient } from '@/lib/supabase'
 import { DDRAGON_VERSION, getPlayerDisplayName } from '@/lib/config'
+import { toDisplayContributionScore } from '@/lib/displayScore'
 import type { ChampionReport, Game } from '@/lib/types'
 import { computeNicknames } from '@/lib/nicknames'
 import type { NicknameAward } from '@/lib/nicknames'
@@ -322,10 +323,10 @@ export default async function PlayerReportPage({
                       <div className="text-xs text-gray-500">{c.wins}W/{c.games - c.wins}L</div>
                     </td>
                     <td className="px-4 py-4 text-center">
-                      <span className="text-blue-400 font-semibold">{c.avg_perf_score}</span>
+                      <span className="text-blue-400 font-semibold">{toDisplayContributionScore(c.avg_perf_score)}</span>
                     </td>
                     <td className="px-4 py-4 text-center">
-                      <span className="text-purple-400 font-semibold">{c.avg_contribution_score}</span>
+                      <span className="text-purple-400 font-semibold">{toDisplayContributionScore(c.avg_contribution_score)}</span>
                     </td>
                     <td className="px-4 py-4 text-center">
                       <span className="text-gray-300 font-semibold">{c.avg_kda}</span>

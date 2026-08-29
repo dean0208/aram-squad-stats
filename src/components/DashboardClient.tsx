@@ -10,6 +10,7 @@ import { getPlayerDisplayName, TRACKED_PLAYERS, DDRAGON_VERSION } from '@/lib/co
 import { rankContributionChampions } from '@/lib/championStats'
 import { getGrowthStatus } from '@/lib/growth'
 import { selectMvp } from '@/lib/mvp'
+import { toDisplayContributionScore } from '@/lib/displayScore'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -133,7 +134,7 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
               <div className="text-[10px] leading-tight text-gray-500">기여도 👍</div>
             </div>
             <div className="whitespace-nowrap text-right text-[10px] text-gray-400">
-              평균 <span className="font-semibold text-purple-300">{stats.bestChamp.avgContribution}점</span>
+              평균 <span className="font-semibold text-purple-300">{toDisplayContributionScore(stats.bestChamp.avgContribution)}점</span>
             </div>
           </div>
         )}
@@ -145,7 +146,7 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
               <div className="text-[10px] leading-tight text-gray-500">기여도 👎</div>
             </div>
             <div className="whitespace-nowrap text-right text-[10px] text-gray-400">
-              평균 <span className="font-semibold text-red-300">{stats.worstChamp.avgContribution}점</span>
+              평균 <span className="font-semibold text-red-300">{toDisplayContributionScore(stats.worstChamp.avgContribution)}점</span>
             </div>
           </div>
         )}
@@ -164,7 +165,7 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
       {/* Average contribution: keep the only numeric summary compact */}
       <div className="min-w-0 rounded-lg bg-gray-900/50 px-2 py-1.5 mt-auto">
         <div className="text-[10px] leading-tight text-gray-500">평균 기여도</div>
-        <div className="text-sm font-semibold text-blue-400">{stats.avgContrib}점</div>
+        <div className="text-sm font-semibold text-blue-400">{toDisplayContributionScore(stats.avgContrib)}점</div>
       </div>
     </div>
   )
@@ -191,7 +192,7 @@ function MvpCard({ games }: { games: Game[] }) {
         </div>
       </div>
       <div className="text-right shrink-0">
-        <div className="text-2xl font-black text-amber-300">{mvpResult.perf_score.toFixed(1)}</div>
+        <div className="text-2xl font-black text-amber-300">{toDisplayContributionScore(mvpResult.perf_score)}</div>
         <div className="text-xs text-amber-500">실제 기여도 / 100</div>
       </div>
     </div>
@@ -253,7 +254,7 @@ function GameRow({ game }: { game: Game }) {
                     <div className="text-xs text-gray-300 font-medium truncate">{result.players ? getPlayerDisplayName(result.players.puuid, result.players.game_name) : '—'}</div>
                     <div className="text-xs text-gray-500">{result.kills}/{result.deaths}/{result.assists}</div>
                     <div className="flex items-center gap-1 mt-0.5">
-                      <span className="text-xs font-bold text-purple-400">{result.contribution_score}</span>
+                      <span className="text-xs font-bold text-purple-400">{toDisplayContributionScore(result.contribution_score)}</span>
                       {myMedals.slice(0, 3).map(({ medal }) => (
                         <span key={medal.id} className="text-xs">{medal.emoji}</span>
                       ))}
