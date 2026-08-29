@@ -363,12 +363,13 @@ export default async function PlayerReportPage({
             {myNicknames.map((award) => (
               <div
                 key={award.id}
-                className={`bg-gradient-to-br ${award.color} rounded-xl px-4 py-3 border ${award.borderColor} flex items-center gap-3`}
+                className={`toss-hall-card toss-hall-${award.borderColor.replace('border-', '').replace('-700', '')} bg-gradient-to-br ${award.color} rounded-xl px-4 py-3 border ${award.borderColor} flex items-center gap-3`}
               >
                 <span className="text-2xl">{award.emoji}</span>
                 <div>
                   <div className={`text-sm font-bold ${award.textColor}`}>{award.name}</div>
-                  <div className="text-xs text-gray-300">{award.valueLabel}</div>
+                  <div className="text-xs text-gray-400 leading-tight">{award.description}</div>
+                  <div className="text-sm font-semibold text-gray-900">{award.valueLabel}</div>
                 </div>
               </div>
             ))}

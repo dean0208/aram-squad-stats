@@ -124,6 +124,7 @@ body {
 .toss-theme .toss-hall-purple { background: #f5f0ff !important; border-color: #c9b3f1 !important; }
 .toss-theme .toss-hall-rose { background: #fff0f3 !important; border-color: #f1afb9 !important; }
 .toss-theme .toss-hall-cyan { background: #eafaff !important; border-color: #9dd9e8 !important; }
+.toss-theme .toss-hall-slate { background: #f1f3f5 !important; border-color: #c8cdd3 !important; }
 
 .toss-theme .toss-hall-card .text-amber-300 { color: #a15c00 !important; }
 .toss-theme .toss-hall-card .text-yellow-300 { color: #8a4b00 !important; }
