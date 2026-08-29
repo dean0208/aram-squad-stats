@@ -68,6 +68,14 @@ export function getBestChampionComposition(games: ChampionCompositionGame[]): Be
 }
 
 export function getBestRoleByPlayer(games: RoleGame[]): Map<string, BestRole> {
+  return getRoleByPlayer(games, 'best')
+}
+
+export function getWorstRoleByPlayer(games: RoleGame[]): Map<string, BestRole> {
+  return getRoleByPlayer(games, 'worst')
+}
+
+function getRoleByPlayer(games: RoleGame[], direction: 'best' | 'worst'): Map<string, BestRole> {
   const stats = new Map<string, Map<string, { wins: number; games: number }>>()
   for (const game of games) {
     for (const member of game.members) {
@@ -84,7 +92,8 @@ export function getBestRoleByPlayer(games: RoleGame[]): Map<string, BestRole> {
     const eligibleRoles = [...roles.entries()].filter(([, value]) => value.games >= 10)
     if (!eligibleRoles.length) return [playerId, null] as const
     const best = eligibleRoles.sort((a, b) =>
-      b[1].wins / b[1].games - a[1].wins / a[1].games || b[1].games - a[1].games
+      (direction === 'best' ? 1 : -1) * (b[1].wins / b[1].games - a[1].wins / a[1].games)
+      || b[1].games - a[1].games
     )[0]
     const [role, value] = best
     return [playerId, { role, ...value, winRate: Math.round((value.wins / value.games) * 100) }]

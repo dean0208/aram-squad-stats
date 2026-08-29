@@ -5,6 +5,7 @@ import {
   analyzeTeamComposition,
   getBestChampionComposition,
   getBestRoleByPlayer,
+  getWorstRoleByPlayer,
 } from '../src/lib/teamInsights.ts'
 
 test('탱커와 AD가 부족한 조합의 문제를 분석한다', () => {
@@ -60,4 +61,14 @@ test('10경기 미만인 포지션은 최고 포지션 후보에서 제외한다
     Array.from({ length: 9 }, () => ({ win: true, members: [{ playerId: 'interest', role: '원딜' }] })),
   )
   assert.equal(best.has('interest'), false)
+})
+
+test('플레이어별 10경기 이상 포지션 중 승률이 가장 낮은 역할을 계산한다', () => {
+  const worst = getWorstRoleByPlayer([
+    ...Array.from({ length: 10 }, () => ({ win: true, members: [{ playerId: 'interest', role: '탱커' }] })),
+    ...Array.from({ length: 10 }, () => ({ win: false, members: [{ playerId: 'interest', role: '원딜' }] })),
+  ])
+
+  assert.equal(worst.get('interest')?.role, '원딜')
+  assert.equal(worst.get('interest')?.winRate, 0)
 })

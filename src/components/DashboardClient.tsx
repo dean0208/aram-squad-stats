@@ -15,7 +15,7 @@ import { toDisplayContributionScore } from '@/lib/displayScore'
 import { assignPlayerTitles, type PlayerTitle } from '@/lib/playerTitles'
 import { getAugmentHighlight, getAugmentName } from '@/lib/augmentHighlight'
 import { getGameCommentary } from '@/lib/gameCommentary'
-import { analyzeTeamComposition, getBestChampionComposition, getBestRoleByPlayer, type DamageType } from '@/lib/teamInsights'
+import { analyzeTeamComposition, getBestChampionComposition, getBestRoleByPlayer, getWorstRoleByPlayer, type DamageType } from '@/lib/teamInsights'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -391,10 +391,21 @@ function BestRoleCard({ games, players, champRoles }: { games: Game[]; players: 
       role: champRoles[result.champion_name]?.label ?? '올라운더',
     })),
   })))
+  const worstByPlayer = getWorstRoleByPlayer(games.map(game => ({
+    win: game.our_team_win,
+    members: game.game_results.filter(result => result.players).map(result => ({
+      playerId: result.players!.puuid,
+      role: champRoles[result.champion_name]?.label ?? '올라운더',
+    })),
+  })))
   const rows = players.map(player => ({
     name: getPlayerDisplayName(player.puuid, player.game_name),
     best: bestByPlayer.get(player.puuid),
   })).filter(row => row.best)
+  const worstRows = players.map(player => ({
+    name: getPlayerDisplayName(player.puuid, player.game_name),
+    worst: worstByPlayer.get(player.puuid),
+  })).filter(row => row.worst)
   if (!rows.length) {
     return (
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
@@ -405,17 +416,34 @@ function BestRoleCard({ games, players, champRoles }: { games: Game[]; players: 
   }
 
   return (
-    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
-      <div className="text-sm font-semibold text-emerald-700">🎯 플레이어별 최고 팀 승률 포지션</div>
-      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {rows.map(({ name, best }) => (
-          <div key={name} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
-            <span className="text-sm font-semibold text-emerald-950">{name}</span>
-            <span className="text-sm text-emerald-700"><b>{best!.role}</b> 잡을 때 {best!.winRate}% <span className="text-xs">({best!.games}경기)</span></span>
-          </div>
-        ))}
+    <>
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+        <div className="text-sm font-semibold text-emerald-700">🎯 플레이어별 최고 팀 승률 포지션</div>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {rows.map(({ name, best }) => (
+            <div key={name} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
+              <span className="text-sm font-semibold text-emerald-950">{name}</span>
+              <span className="text-sm text-emerald-700"><b>{best!.role}</b> 잡을 때 {best!.winRate}% <span className="text-xs">({best!.games}경기)</span></span>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4">
+        <div className="text-sm font-semibold text-rose-700">📉 플레이어별 승률이 아쉬웠던 포지션</div>
+        {worstRows.length ? (
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {worstRows.map(({ name, worst }) => (
+              <div key={name} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
+                <span className="text-sm font-semibold text-rose-950">{name}</span>
+                <span className="text-sm text-rose-700"><b>{worst!.role}</b> 잡을 때 {worst!.winRate}% <span className="text-xs">({worst!.games}경기)</span></span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-rose-600">포지션별 10경기 이상 기록이 쌓이면 아쉬웠던 역할도 보여드릴게요.</p>
+        )}
+      </div>
+    </>
   )
 }
 
