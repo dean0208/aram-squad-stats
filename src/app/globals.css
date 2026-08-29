@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #111827;
-  --foreground: #f9fafb;
+  --background: #f6f7f9;
+  --foreground: #191f28;
 }
 
 * {
@@ -18,4 +18,74 @@
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* Toss-inspired visual language: light canvas, white surfaces, blue actions. */
+.toss-theme .bg-gray-900,
+.toss-theme .bg-gray-950 {
+  background-color: #f6f7f9 !important;
+}
+
+.toss-theme .bg-gray-800,
+.toss-theme .bg-gray-800\/60,
+.toss-theme .bg-gray-750 {
+  background-color: #ffffff !important;
+}
+
+.toss-theme .bg-gray-900\/50 {
+  background-color: #f8f9fb !important;
+}
+
+.toss-theme .border-gray-700,
+.toss-theme .border-gray-700\/50,
+.toss-theme .border-gray-800 {
+  border-color: #eef0f3 !important;
+}
+
+.toss-theme .text-white {
+  color: #191f28 !important;
+}
+
+.toss-theme .text-gray-300 {
+  color: #4e5968 !important;
+}
+
+.toss-theme .text-gray-400,
+.toss-theme .text-gray-500,
+.toss-theme .text-gray-600 {
+  color: #8b95a1 !important;
+}
+
+.toss-theme .text-purple-300,
+.toss-theme .text-purple-400,
+.toss-theme .text-purple-500 {
+  color: #3182f6 !important;
+}
+
+.toss-theme .text-blue-300,
+.toss-theme .text-blue-400 {
+  color: #3182f6 !important;
+}
+
+.toss-theme .text-green-300,
+.toss-theme .text-green-400 {
+  color: #20a464 !important;
+}
+
+.toss-theme .text-red-300,
+.toss-theme .text-red-400 {
+  color: #e5484d !important;
+}
+
+.toss-theme .text-yellow-300,
+.toss-theme .text-yellow-400 {
+  color: #c47f00 !important;
+}
+
+.toss-theme .bg-gray-700 {
+  background-color: #f2f4f6 !important;
+}
+
+.toss-theme .border-purple-600\/50 {
+  border-color: #b9d5ff !important;
 }

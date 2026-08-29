@@ -94,11 +94,11 @@ export default async function HomePage() {
   const initialNicknames = computeNicknames(allGames)
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 sm:space-y-8">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-white">마 좀 치나?</h1>
-          <p className="text-gray-400 mt-1">OCE server • 4-stack ARAM tracker</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#191f28]">마 좀 치나?</h1>
+          <p className="text-sm text-[#6b7684] mt-1">OCE server · 4-stack ARAM tracker</p>
         </div>
         <SyncButton />
       </div>
