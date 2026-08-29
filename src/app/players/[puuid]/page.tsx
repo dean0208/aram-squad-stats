@@ -23,6 +23,68 @@ function ChampionIcon({ name, size = 32 }: { name: string; size?: number }) {
   )
 }
 
+function ChampionBreakdownTable({ champions, championNames }: {
+  champions: ChampionReport[]
+  championNames: Record<string, string>
+}) {
+  if (!champions.length) {
+    return <div className="px-4 py-8 text-center text-sm text-gray-500">해당 구간에 챔피언 기록이 없습니다</div>
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead>
+          <tr className="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-700">
+            <th className="px-6 py-3 text-left">Champion</th>
+            <th className="px-4 py-3 text-center">Games</th>
+            <th className="px-4 py-3 text-center">Win%</th>
+            <th className="px-4 py-3 text-center">Avg Perf</th>
+            <th className="px-4 py-3 text-center">Avg Contribution</th>
+            <th className="px-4 py-3 text-center">Avg KDA</th>
+            <th className="px-4 py-3 text-center">K/D/A</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-700">
+          {champions.map((c) => (
+            <tr key={c.champion_name} className="hover:bg-gray-750 transition-colors">
+              <td className="px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <ChampionIcon name={c.champion_name} size={36} />
+                  <span className="text-white font-medium">{getChampionDisplayName(c.champion_name, championNames)}</span>
+                </div>
+              </td>
+              <td className="px-4 py-4 text-center text-gray-300">{c.games}</td>
+              <td className="px-4 py-4 text-center">
+                <span className={`font-semibold ${c.win_rate >= 50 ? 'text-green-400' : 'text-red-400'}`}>
+                  {c.win_rate}%
+                </span>
+                <div className="text-xs text-gray-500">{c.wins}W/{c.games - c.wins}L</div>
+              </td>
+              <td className="px-4 py-4 text-center">
+                <span className="text-blue-400 font-semibold">{toDisplayContributionScore(c.avg_perf_score)}</span>
+              </td>
+              <td className="px-4 py-4 text-center">
+                <span className="text-purple-400 font-semibold">{toDisplayContributionScore(c.avg_contribution_score)}</span>
+              </td>
+              <td className="px-4 py-4 text-center">
+                <span className="text-gray-300 font-semibold">{c.avg_kda}</span>
+              </td>
+              <td className="px-4 py-4 text-center text-sm">
+                <span className="text-green-400">{c.avg_kills}</span>
+                <span className="text-gray-500 mx-1">/</span>
+                <span className="text-red-400">{c.avg_deaths}</span>
+                <span className="text-gray-500 mx-1">/</span>
+                <span className="text-blue-400">{c.avg_assists}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export default async function PlayerReportPage({
   params,
 }: {
@@ -183,6 +245,8 @@ export default async function PlayerReportPage({
 
   const suspects = championReport.filter((c) => c.is_suspect)
   const regular = championReport.filter((c) => !c.is_suspect)
+  const strongChampions = regular.filter((c) => toDisplayContributionScore(c.avg_contribution_score) >= 50)
+  const weakChampions = regular.filter((c) => toDisplayContributionScore(c.avg_contribution_score) < 50)
 
   return (
     <div className="space-y-6">
@@ -285,68 +349,29 @@ export default async function PlayerReportPage({
         </div>
       )}
 
-      {/* Champion Breakdown Table */}
-      <div className="bg-gray-800 rounded-2xl border border-gray-700 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-700">
-          <h2 className="text-lg font-semibold text-white">Champion Breakdown</h2>
+      {championReport.length === 0 ? (
+        <div className="bg-gray-800 rounded-2xl border border-gray-700 text-center py-12 text-gray-500">
+          아직 기록된 게임이 없습니다
         </div>
-        {championReport.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">No games recorded yet</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-700">
-                  <th className="px-6 py-3 text-left">Champion</th>
-                  <th className="px-4 py-3 text-center">Games</th>
-                  <th className="px-4 py-3 text-center">Win%</th>
-                  <th className="px-4 py-3 text-center">Avg Perf</th>
-                  <th className="px-4 py-3 text-center">Avg Contribution</th>
-                  <th className="px-4 py-3 text-center">Avg KDA</th>
-                  <th className="px-4 py-3 text-center">K/D/A</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-700">
-                {regular.map((c: ChampionReport) => (
-                  <tr key={c.champion_name} className="hover:bg-gray-750 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <ChampionIcon name={c.champion_name} size={36} />
-                        <span className="text-white font-medium">{getChampionDisplayName(c.champion_name, championNames)}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-center text-gray-300">{c.games}</td>
-                    <td className="px-4 py-4 text-center">
-                      <span
-                        className={`font-semibold ${c.win_rate >= 50 ? 'text-green-400' : 'text-red-400'}`}
-                      >
-                        {c.win_rate}%
-                      </span>
-                      <div className="text-xs text-gray-500">{c.wins}W/{c.games - c.wins}L</div>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <span className="text-blue-400 font-semibold">{toDisplayContributionScore(c.avg_perf_score)}</span>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <span className="text-purple-400 font-semibold">{toDisplayContributionScore(c.avg_contribution_score)}</span>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <span className="text-gray-300 font-semibold">{c.avg_kda}</span>
-                    </td>
-                    <td className="px-4 py-4 text-center text-sm">
-                      <span className="text-green-400">{c.avg_kills}</span>
-                      <span className="text-gray-500 mx-1">/</span>
-                      <span className="text-red-400">{c.avg_deaths}</span>
-                      <span className="text-gray-500 mx-1">/</span>
-                      <span className="text-blue-400">{c.avg_assists}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      ) : (
+        <div className="space-y-6">
+          <section className="bg-gray-800 rounded-2xl border border-green-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-700">
+              <h2 className="text-lg font-semibold text-green-500">🔥 좀 치노</h2>
+              <p className="text-xs text-gray-500 mt-1">기여도 지수 50점 이상</p>
+            </div>
+            <ChampionBreakdownTable champions={strongChampions} championNames={championNames} />
+          </section>
+
+          <section className="bg-gray-800 rounded-2xl border border-red-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-700">
+              <h2 className="text-lg font-semibold text-red-500">😅 별론데?</h2>
+              <p className="text-xs text-gray-500 mt-1">기여도 지수 50점 미만</p>
+            </div>
+            <ChampionBreakdownTable champions={weakChampions} championNames={championNames} />
+          </section>
+        </div>
+      )}
     </div>
   )
 }
