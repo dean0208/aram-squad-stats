@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f6f7f9;
+  --background: #eef1f5;
   --foreground: #191f28;
 }
 
@@ -23,23 +23,23 @@ body {
 /* Toss-inspired visual language: light canvas, white surfaces, blue actions. */
 .toss-theme .bg-gray-900,
 .toss-theme .bg-gray-950 {
-  background-color: #f6f7f9 !important;
+  background-color: #eef1f5 !important;
 }
 
 .toss-theme .bg-gray-800,
 .toss-theme .bg-gray-800\/60,
 .toss-theme .bg-gray-750 {
-  background-color: #ffffff !important;
+  background-color: #f8fafc !important;
 }
 
 .toss-theme .bg-gray-900\/50 {
-  background-color: #f8f9fb !important;
+  background-color: #eef1f5 !important;
 }
 
 .toss-theme .border-gray-700,
 .toss-theme .border-gray-700\/50,
 .toss-theme .border-gray-800 {
-  border-color: #eef0f3 !important;
+  border-color: #dfe4ea !important;
 }
 
 .toss-theme .text-white {
@@ -83,9 +83,48 @@ body {
 }
 
 .toss-theme .bg-gray-700 {
-  background-color: #f2f4f6 !important;
+  background-color: #e5e9ef !important;
+}
+
+.toss-theme [class*="bg-yellow-950"] { background-color: #fff7e6 !important; }
+.toss-theme [class*="bg-amber-950"] { background-color: #fff7e6 !important; }
+.toss-theme [class*="bg-orange-950"] { background-color: #fff3e8 !important; }
+.toss-theme [class*="bg-red-950"] { background-color: #fff0f1 !important; }
+.toss-theme [class*="bg-green-950"] { background-color: #edf9f2 !important; }
+.toss-theme [class*="bg-blue-950"] { background-color: #edf5ff !important; }
+.toss-theme [class*="bg-purple-950"] { background-color: #f5f0ff !important; }
+
+.toss-theme .bg-gradient-to-r {
+  background-image: none !important;
+  background-color: #fff7e6 !important;
 }
 
 .toss-theme .border-purple-600\/50 {
   border-color: #b9d5ff !important;
 }
+
+/* Light counterparts for the Hall of Fame color tokens. */
+.toss-theme .toss-hall-card {
+  background-image: none !important;
+  box-shadow: 0 2px 8px rgba(25, 31, 40, 0.05);
+}
+
+.toss-theme .toss-hall-amber { background: #fff7e6 !important; border-color: #f3c978 !important; }
+.toss-theme .toss-hall-orange { background: #fff3e8 !important; border-color: #f5b97f !important; }
+.toss-theme .toss-hall-red { background: #fff0f1 !important; border-color: #f2a6aa !important; }
+.toss-theme .toss-hall-green { background: #edf9f2 !important; border-color: #9ed8b5 !important; }
+.toss-theme .toss-hall-blue { background: #edf5ff !important; border-color: #a9c9f5 !important; }
+.toss-theme .toss-hall-pink { background: #fff0f6 !important; border-color: #f2afd0 !important; }
+.toss-theme .toss-hall-purple { background: #f5f0ff !important; border-color: #c9b3f1 !important; }
+.toss-theme .toss-hall-rose { background: #fff0f3 !important; border-color: #f1afb9 !important; }
+.toss-theme .toss-hall-cyan { background: #eafaff !important; border-color: #9dd9e8 !important; }
+
+.toss-theme .toss-hall-card .text-amber-300 { color: #a15c00 !important; }
+.toss-theme .toss-hall-card .text-orange-300 { color: #b45309 !important; }
+.toss-theme .toss-hall-card .text-red-300 { color: #c5363d !important; }
+.toss-theme .toss-hall-card .text-green-300 { color: #147a49 !important; }
+.toss-theme .toss-hall-card .text-blue-300 { color: #2463a8 !important; }
+.toss-theme .toss-hall-card .text-pink-300 { color: #b42368 !important; }
+.toss-theme .toss-hall-card .text-purple-300 { color: #6941a5 !important; }
+.toss-theme .toss-hall-card .text-rose-300 { color: #be3448 !important; }
+.toss-theme .toss-hall-card .text-cyan-300 { color: #087ea4 !important; }
