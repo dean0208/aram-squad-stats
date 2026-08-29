@@ -12,6 +12,7 @@ import { rankContributionChampions } from '@/lib/championStats'
 import { getGrowthStatus } from '@/lib/growth'
 import { selectMvp } from '@/lib/mvp'
 import { toDisplayContributionScore } from '@/lib/displayScore'
+import { assignPlayerTitles, type PlayerTitle } from '@/lib/playerTitles'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -75,6 +76,11 @@ function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRo
   // 전체 평균 대비 최근 10판 성장세
   const avgContrib = entries.reduce((a, { r }) => a + r.contribution_score, 0) / total
   const avgDeath = entries.reduce((a, { r }) => a + r.deaths, 0) / total
+  const avgDamage = entries.reduce((a, { r }) => a + r.damage_dealt, 0) / total
+  const avgTaken = entries.reduce((a, { r }) => a + r.damage_taken, 0) / total
+  const avgHealing = entries.reduce((a, { r }) => a + r.healing, 0) / total
+  const avgCc = entries.reduce((a, { r }) => a + r.cc_score, 0) / total
+  const avgAssist = entries.reduce((a, { r }) => a + r.assists, 0) / total
   const recent10 = entries.slice(0, Math.min(10, total))
   const recent10AvgContrib = recent10.reduce((a, { r }) => a + r.contribution_score, 0) / recent10.length
   const growthStatus = getGrowthStatus(avgContrib, recent10AvgContrib)
@@ -83,6 +89,7 @@ function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRo
     mostChamp, champWinRate, champCount: mostInfo.count, role,
     bestChamp, worstChamp,
     avgContrib: Math.round(avgContrib), avgDeath, growthStatus,
+    avgDamage, avgTaken, avgHealing, avgCc, avgAssist,
     total,
   }
 }
@@ -91,8 +98,8 @@ function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRo
 
 interface PlayerSummary { id: string; puuid: string; game_name: string; tag_line: string }
 
-function PlayerProfileCard({ player, allGames, champRoles }: {
-  player: PlayerSummary; allGames: Game[]; champRoles: ChampRoleMap
+function PlayerProfileCard({ player, allGames, champRoles, title }: {
+  player: PlayerSummary; allGames: Game[]; champRoles: ChampRoleMap; title: PlayerTitle
 }) {
   const stats = useMemo(
     () => computePlayerStats(player.puuid, allGames, champRoles),
@@ -111,7 +118,12 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
     <div className="bg-gray-800/60 rounded-2xl p-3 sm:p-4 border border-gray-700 flex flex-col gap-2 h-full cursor-pointer touch-manipulation hover:border-purple-600/50 hover:shadow-lg hover:shadow-blue-100/60 transition-all">
       {/* Header */}
       <div>
-        <div className="font-bold text-white text-sm leading-tight">{getPlayerDisplayName(player.puuid, player.game_name)}</div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div className="font-bold text-white text-sm leading-tight">{getPlayerDisplayName(player.puuid, player.game_name)}</div>
+          <span className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-[11px] font-semibold leading-tight text-blue-600">
+            {title.emoji} {title.label}
+          </span>
+        </div>
         <div className="text-xs text-gray-500">#{player.tag_line}</div>
       </div>
 
@@ -494,6 +506,23 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
     return ai - bi
   }), [players])
 
+  const playerTitles = useMemo(() => {
+    const titleStats = orderedPlayers.flatMap(player => {
+      const stats = computePlayerStats(player.puuid, allGames, champRoles)
+      if (!stats) return []
+      return [{
+        puuid: player.puuid,
+        role: stats.role.label,
+        avgDamage: stats.avgDamage,
+        avgTaken: stats.avgTaken,
+        avgHealing: stats.avgHealing,
+        avgCc: stats.avgCc,
+        avgAssist: stats.avgAssist,
+      }]
+    })
+    return assignPlayerTitles(titleStats)
+  }, [orderedPlayers, allGames, champRoles])
+
   return (
     <div className="space-y-6">
 
@@ -507,7 +536,12 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
               className="group block h-full rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2"
               aria-label={`${getPlayerDisplayName(p.puuid, p.game_name)} 상세 프로필 보기`}
             >
-              <PlayerProfileCard player={p} allGames={allGames} champRoles={champRoles} />
+              <PlayerProfileCard
+                player={p}
+                allGames={allGames}
+                champRoles={champRoles}
+                title={playerTitles.get(p.puuid) ?? { emoji: '⚡', label: '든든한 전력' }}
+              />
             </Link>
           ))}
         </div>
