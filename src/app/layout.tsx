@@ -23,7 +23,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
       <body className="min-h-full flex flex-col bg-gray-900 text-white antialiased">
         <nav className="border-b border-gray-800 bg-gray-950 px-6 py-4">
           <a href="/" className="text-lg font-bold text-purple-400 hover:text-purple-300 transition-colors">
-            누가누가 잘했나😎
+            마 좀 치나?
           </a>
         </nav>
         <main className="flex-1 container mx-auto px-4 py-8 max-w-6xl">
