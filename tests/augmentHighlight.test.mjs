@@ -3,8 +3,8 @@ import test from 'node:test'
 
 import { getAugmentHighlight, getAugmentName } from '../src/lib/augmentHighlight.ts'
 
-test('증강 ID 2095를 하이 롤러로 표시한다', () => {
-  assert.equal(getAugmentName(2095), '하이 롤러 (High Roller)')
+test('증강 ID 2095를 한국어 이름으로 표시한다', () => {
+  assert.equal(getAugmentName(2095), '도박꾼')
 })
 
 test('이름을 모르는 증강은 ID를 보존한다', () => {

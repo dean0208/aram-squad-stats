@@ -1,3 +1,5 @@
+import augmentNames from './cherryAugmentNames.ko.mjs'
+
 export interface AugmentGame {
   our_team_win: boolean
   augment_ids: number[]
@@ -9,12 +11,8 @@ export interface AugmentHighlight {
   wins: number
 }
 
-const AUGMENT_NAMES: Record<number, string> = {
-  2095: '하이 롤러 (High Roller)',
-}
-
 export function getAugmentName(id: number): string {
-  return AUGMENT_NAMES[id] ?? `증강 #${id}`
+  return augmentNames[String(id) as keyof typeof augmentNames] ?? `증강 #${id}`
 }
 
 export function getAugmentHighlight(games: AugmentGame[]): AugmentHighlight | null {
