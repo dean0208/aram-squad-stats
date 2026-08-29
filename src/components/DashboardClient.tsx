@@ -263,6 +263,7 @@ function GameRow({ game }: { game: Game }) {
   const mvp = sorted[0]
   const wins = game.our_team_win
   const commentary = getGameCommentary({
+    game_id: game.id,
     our_team_win: game.our_team_win,
     game_results: game.game_results
       .filter(result => result.players)
