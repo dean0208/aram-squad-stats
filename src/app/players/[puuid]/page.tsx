@@ -46,14 +46,29 @@ function FormTrendCard({ scores, trend, metrics }: {
           <div className="mt-1 text-xs text-violet-700">기여도 점수 변화</div>
         </div>
       </div>
-      <div className="mt-4 flex h-24 items-end gap-1.5" aria-label="최근 10경기 기여도 점수 그래프">
-        {scores.map((score, index) => (
-          <div key={`${score}-${index}`} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-            <span className="text-[10px] font-semibold text-violet-700">{Math.round(score)}</span>
-            <div className="w-full rounded-t-md bg-violet-300" style={{ height: `${Math.max(8, Math.min(100, score))}%` }} />
-            <span className="text-[10px] text-violet-600">{index === 0 ? '최근' : `-${index + 1}`}</span>
-          </div>
-        ))}
+      <div className="mt-4 rounded-xl bg-white/60 px-2 py-2">
+        <svg viewBox="0 0 400 140" className="h-32 w-full" role="img" aria-label="최근 10경기 기여도 점수 실선 그래프">
+          {[25, 50, 75].map(value => {
+            const y = 125 - value * 1.05
+            return <line key={value} x1="10" x2="390" y1={y} y2={y} stroke="#ddd6fe" strokeDasharray="3 3" />
+          })}
+          <polyline
+            fill="none"
+            stroke="#7c3aed"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            points={scores.map((score, index) => `${scores.length === 1 ? 200 : 10 + (index / (scores.length - 1)) * 380},${125 - Math.max(0, Math.min(100, score)) * 1.05}`).join(' ')}
+          />
+          {scores.map((score, index) => (
+            <g key={`${score}-${index}`}>
+              <circle cx={scores.length === 1 ? 200 : 10 + (index / (scores.length - 1)) * 380} cy={125 - Math.max(0, Math.min(100, score)) * 1.05} r="4" fill="#7c3aed" />
+              <text x={scores.length === 1 ? 200 : 10 + (index / (scores.length - 1)) * 380} y={Math.max(13, 117 - Math.max(0, Math.min(100, score)) * 1.05)} textAnchor="middle" fontSize="10" fill="#5b21b6">{Math.round(score)}</text>
+            </g>
+          ))}
+          <text x="10" y="138" fontSize="10" fill="#6d28d9">최근</text>
+          <text x="390" y="138" textAnchor="end" fontSize="10" fill="#6d28d9">10경기 전</text>
+        </svg>
       </div>
       <div className="mt-4 grid grid-cols-3 gap-2 text-center">
         <div className="rounded-xl bg-white/70 px-2 py-2"><div className="text-xs text-violet-700">평균 딜량</div><div className="text-sm font-bold text-violet-950">{Math.round(metrics.damage / 1000)}k</div></div>
