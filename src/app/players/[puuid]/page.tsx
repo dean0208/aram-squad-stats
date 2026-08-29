@@ -113,8 +113,7 @@ export default async function PlayerReportPage({
     .single()
 
   if (!player) notFound()
-  const championCatalog = await fetchChampionCatalog()
-  const championNames = Object.fromEntries(championCatalog.map(champion => [champion.id, champion.name]))
+  const championCatalogPromise = fetchChampionCatalog()
 
   // Get all game results for this player with game info
   const { data: results } = await supabase
@@ -174,6 +173,8 @@ export default async function PlayerReportPage({
     .limit(500)
 
   const allGames = (allGamesRaw ?? []) as unknown as Game[]
+  const championCatalog = await championCatalogPromise
+  const championNames = Object.fromEntries(championCatalog.map(champion => [champion.id, champion.name]))
   const allNicknames = computeNicknames(allGames)
   const myNicknames: NicknameAward[] = allNicknames.filter(
     (n) => n.winnerPuuid === decodedPuuid,

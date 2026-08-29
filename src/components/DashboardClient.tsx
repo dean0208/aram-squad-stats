@@ -13,6 +13,7 @@ import { getGrowthStatus } from '@/lib/growth'
 import { selectMvp } from '@/lib/mvp'
 import { toDisplayContributionScore } from '@/lib/displayScore'
 import { assignPlayerTitles, type PlayerTitle } from '@/lib/playerTitles'
+import { getAugmentHighlight } from '@/lib/augmentHighlight'
 import { getGameCommentary } from '@/lib/gameCommentary'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -215,6 +216,30 @@ function MvpCard({ games, championNames }: { games: Game[]; championNames: Champ
       <div className="shrink-0 text-center">
         <div className="text-2xl font-black text-amber-300">{toDisplayContributionScore(mvpResult.perf_score)}</div>
         <div className="text-xs text-amber-500">기여도 지수 / 100</div>
+      </div>
+    </div>
+  )
+}
+
+function DailyAugmentCard({ games }: { games: Game[] }) {
+  const highlight = getAugmentHighlight(
+    games.flatMap(game =>
+      game.game_results
+        .filter(result => result.players && result.augment_ids?.length)
+        .map(result => ({
+          our_team_win: game.our_team_win,
+          augment_ids: result.augment_ids,
+        })),
+    ),
+  )
+  if (!highlight) return null
+
+  return (
+    <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-center">
+      <div className="text-xs font-semibold text-blue-500">✨ 오늘의 증강</div>
+      <div className="mt-1 text-base font-bold text-blue-700">증강 #{highlight.id}</div>
+      <div className="mt-0.5 text-xs text-blue-600">
+        {highlight.wins === highlight.games ? '승리한 판에서 가장 빛난 픽' : '오늘 승패에 가장 큰 영향을 준 픽'}
       </div>
     </div>
   )
@@ -551,6 +576,7 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
             <Link
               key={p.puuid}
               href={`/players/${encodeURIComponent(p.puuid)}`}
+              prefetch
               className="group block h-full rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2"
               aria-label={`${getPlayerDisplayName(p.puuid, p.game_name)} 상세 프로필 보기`}
             >
@@ -571,6 +597,7 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
       {/* ── 날짜별 콘텐츠 ── */}
       <div key={animKey} className="space-y-4" style={{ animation: 'fadeSlideIn 0.25s ease-out' }}>
         {filteredGames.length > 0 && <MvpCard games={filteredGames} championNames={championNames} />}
+        {filteredGames.length > 0 && <DailyAugmentCard games={filteredGames} />}
         {filteredGames.length > 0 && (
           <DailyPerformance allGames={allGames} filteredGames={filteredGames} players={orderedPlayers} />
         )}
