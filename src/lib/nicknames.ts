@@ -80,7 +80,7 @@ const NICKNAME_DEFS: NicknameDefinition[] = [
   {
     id: 'destroyer',
     emoji: '💥',
-    name: '제일 잘 치노',
+    name: '손꾸락 안아프나?',
     description: '누적 딜량 1위',
     colorKey: 'orange',
     getValue: (s) => s.totalDamageDealt,
