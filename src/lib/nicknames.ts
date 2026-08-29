@@ -1,4 +1,5 @@
 import type { Game, GameResult } from './types'
+import { getPlayerDisplayName } from './config'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -254,7 +255,7 @@ export function aggregatePlayerStats(games: Game[]): PlayerStats[] {
     }
 
     statsArr.push({
-      playerName,
+      playerName: getPlayerDisplayName(puuid, playerName),
       puuid,
       gamesPlayed,
       totalKills,

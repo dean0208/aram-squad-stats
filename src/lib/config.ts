@@ -24,6 +24,18 @@ export const TRACKED_PLAYERS = [
 
 export const TRACKED_PUUIDS = new Set(TRACKED_PLAYERS.map((p) => p.puuid))
 
+// Display aliases are separate from Riot IDs so API/LCU matching stays intact.
+export const PLAYER_DISPLAY_NAMES: Record<string, string> = {
+  [TRACKED_PLAYERS[0].puuid]: '째지',
+  [TRACKED_PLAYERS[1].puuid]: '허개굴',
+  [TRACKED_PLAYERS[2].puuid]: '말자허',
+  [TRACKED_PLAYERS[3].puuid]: '권선비',
+}
+
+export function getPlayerDisplayName(puuid: string, fallback: string): string {
+  return PLAYER_DISPLAY_NAMES[puuid] ?? fallback
+}
+
 // Only collect games from this date onwards (2026-07-01 KST)
 export const DATA_START_DATE = new Date('2026-07-01T00:00:00+09:00')
 

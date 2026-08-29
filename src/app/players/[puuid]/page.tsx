@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createServerClient } from '@/lib/supabase'
-import { DDRAGON_VERSION } from '@/lib/config'
+import { DDRAGON_VERSION, getPlayerDisplayName } from '@/lib/config'
 import type { ChampionReport, Game } from '@/lib/types'
 import { computeNicknames } from '@/lib/nicknames'
 import type { NicknameAward } from '@/lib/nicknames'
@@ -192,7 +192,7 @@ export default async function PlayerReportPage({
       <div className="bg-gray-800 rounded-2xl border border-gray-700 p-6">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white">{player.game_name}</h1>
+            <h1 className="text-3xl font-bold text-white">{getPlayerDisplayName(player.puuid, player.game_name)}</h1>
             <div className="text-gray-400 text-lg">#{player.tag_line}</div>
           </div>
           <div className="grid grid-cols-3 gap-6 text-center">

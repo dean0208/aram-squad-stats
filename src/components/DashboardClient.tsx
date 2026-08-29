@@ -6,7 +6,7 @@ import Image from 'next/image'
 import type { Game, GameResult } from '@/lib/types'
 import type { NicknameAward } from '@/lib/nicknames'
 import { calculateMedals } from '@/lib/medals'
-import { TRACKED_PLAYERS, DDRAGON_VERSION } from '@/lib/config'
+import { getPlayerDisplayName, TRACKED_PLAYERS, DDRAGON_VERSION } from '@/lib/config'
 import { rankContributionChampions } from '@/lib/championStats'
 import { getGrowthStatus } from '@/lib/growth'
 import { selectMvp } from '@/lib/mvp'
@@ -109,7 +109,7 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
     <div className="bg-gray-800/60 rounded-2xl p-4 border border-gray-700 flex flex-col gap-3 h-full hover:border-purple-600/50 transition-colors">
       {/* Header */}
       <div>
-        <div className="font-bold text-white text-sm leading-tight">{player.game_name}</div>
+        <div className="font-bold text-white text-sm leading-tight">{getPlayerDisplayName(player.puuid, player.game_name)}</div>
         <div className="text-xs text-gray-500">#{player.tag_line}</div>
       </div>
 
@@ -186,7 +186,7 @@ function MvpCard({ games }: { games: Game[] }) {
         <ChampionIcon name={mvpResult.champion_name} size={44} />
         <div className="min-w-0">
           <div className="text-xs text-amber-400 font-semibold uppercase tracking-wider">오늘의 MVP</div>
-          <div className="text-white font-bold text-lg leading-tight">{mvpResult.players?.game_name}</div>
+          <div className="text-white font-bold text-lg leading-tight">{mvpResult.players ? getPlayerDisplayName(mvpResult.players.puuid, mvpResult.players.game_name) : '—'}</div>
           <div className="text-sm text-amber-300">{mvpResult.champion_name} · {mvpResult.kills}/{mvpResult.deaths}/{mvpResult.assists}</div>
         </div>
       </div>
@@ -230,7 +230,7 @@ function GameRow({ game }: { game: Game }) {
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <ChampionIcon name={mvp.champion_name} size={24} />
             <span className="text-sm text-gray-300 truncate">
-              <span className="text-purple-400 font-semibold">{mvp.players?.game_name}</span>
+              <span className="text-purple-400 font-semibold">{mvp.players ? getPlayerDisplayName(mvp.players.puuid, mvp.players.game_name) : '—'}</span>
               <span className="text-gray-500 ml-1">{mvp.kills}/{mvp.deaths}/{mvp.assists}</span>
             </span>
             {resultMedals[mvp.id]?.slice(0, 2).map(({ medal }) => (
@@ -250,7 +250,7 @@ function GameRow({ game }: { game: Game }) {
                 <div key={result.id} className="flex items-center gap-2">
                   <ChampionIcon name={result.champion_name} size={28} />
                   <div className="min-w-0">
-                    <div className="text-xs text-gray-300 font-medium truncate">{result.players?.game_name}</div>
+                    <div className="text-xs text-gray-300 font-medium truncate">{result.players ? getPlayerDisplayName(result.players.puuid, result.players.game_name) : '—'}</div>
                     <div className="text-xs text-gray-500">{result.kills}/{result.deaths}/{result.assists}</div>
                     <div className="flex items-center gap-1 mt-0.5">
                       <span className="text-xs font-bold text-purple-400">{result.contribution_score}</span>
@@ -294,7 +294,7 @@ function DailyPerformance({ allGames, filteredGames, players }: {
     const todayAvg = todayResults.reduce((a, r) => a + r.contribution_score, 0) / todayResults.length
 
     const diff = todayAvg - baseline
-    return { name: p.game_name, diff }
+    return { name: getPlayerDisplayName(p.puuid, p.game_name), diff }
   }).filter(Boolean) as { name: string; diff: number }[]
 
   if (!stats.length) return null
@@ -396,7 +396,7 @@ function buildBadgeCounts(games: Game[]) {
     const medals = calculateMedals(game.game_results)
     for (const { medal, winners } of medals) {
       if (winners.length === 1 && winners[0].players) {
-        const name = winners[0].players.game_name
+        const name = getPlayerDisplayName(winners[0].players.puuid, winners[0].players.game_name)
         if (!counts[name]) counts[name] = {}
         counts[name][medal.id] = (counts[name][medal.id] ?? 0) + 1
       }
@@ -413,7 +413,10 @@ function BadgeLeaderboard({ games, players }: { games: Game[]; players: PlayerSu
       {BADGE_DEFS.map(badge => {
         // 이 뱃지 1위 플레이어
         const ranked = players
-          .map(p => ({ name: p.game_name, count: lb[p.game_name]?.[badge.id] ?? 0 }))
+          .map(p => {
+            const name = getPlayerDisplayName(p.puuid, p.game_name)
+            return { name, count: lb[name]?.[badge.id] ?? 0 }
+          })
           .sort((a, b) => b.count - a.count)
         const top = ranked[0]
 

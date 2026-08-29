@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createServerClient } from '@/lib/supabase'
-import { DDRAGON_VERSION } from '@/lib/config'
+import { DDRAGON_VERSION, getPlayerDisplayName } from '@/lib/config'
 import type { Game, GameResult } from '@/lib/types'
 import { calculateMedals } from '@/lib/medals'
 
@@ -198,7 +198,7 @@ export default async function GameDetailPage({
                               href={`/players/${encodeURIComponent(result.players.puuid)}`}
                               className="hover:text-purple-400 transition-colors"
                             >
-                              {result.players.game_name}
+                              {getPlayerDisplayName(result.players.puuid, result.players.game_name)}
                             </Link>
                           ) : (
                             '—'
@@ -276,7 +276,7 @@ export default async function GameDetailPage({
                   {medal.name}
                 </div>
                 <div className="text-xs text-gray-300 font-medium">
-                  {winners.map((w) => w.players?.game_name ?? '?').join(', ')}
+                  {winners.map((w) => w.players ? getPlayerDisplayName(w.players.puuid, w.players.game_name) : '?').join(', ')}
                 </div>
                 <div className="text-xs text-gray-500 mt-0.5">{medal.description}</div>
               </div>
@@ -297,7 +297,7 @@ export default async function GameDetailPage({
                   <ChampionIcon name={result.champion_name} size={28} />
                   <div>
                     <div className="text-sm text-gray-300 font-medium">
-                      {result.players?.game_name} ({result.champion_name})
+                      {result.players ? getPlayerDisplayName(result.players.puuid, result.players.game_name) : '—'} ({result.champion_name})
                     </div>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {result.augment_ids.map((augId, i) => (
