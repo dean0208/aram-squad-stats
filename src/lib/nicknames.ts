@@ -70,7 +70,7 @@ const NICKNAME_DEFS: NicknameDefinition[] = [
   {
     id: 'legend',
     emoji: '👑',
-    name: '전설',
+    name: '더킹갓제네럴엠페러충무공',
     description: '누적 기여도 평균 1위 · 종합 MVP',
     colorKey: 'amber',
     getValue: (s) => s.avgContribution,
@@ -80,7 +80,7 @@ const NICKNAME_DEFS: NicknameDefinition[] = [
   {
     id: 'destroyer',
     emoji: '💥',
-    name: '파괴신',
+    name: '제일 잘 치노',
     description: '누적 딜량 1위',
     colorKey: 'orange',
     getValue: (s) => s.totalDamageDealt,
@@ -100,7 +100,7 @@ const NICKNAME_DEFS: NicknameDefinition[] = [
   {
     id: 'savior',
     emoji: '🩹',
-    name: '생명의 은인',
+    name: '니마 힐 좀',
     description: '누적 힐량 1위',
     colorKey: 'green',
     getValue: (s) => s.totalHealing,
@@ -110,7 +110,7 @@ const NICKNAME_DEFS: NicknameDefinition[] = [
   {
     id: 'wall',
     emoji: '🛡️',
-    name: '살아있는 벽',
+    name: '쳐맞는게 즐거워요',
     description: '누적 피해흡수 1위',
     colorKey: 'blue',
     getValue: (s) => s.totalDamageTaken,
@@ -120,7 +120,7 @@ const NICKNAME_DEFS: NicknameDefinition[] = [
   {
     id: 'heart',
     emoji: '🤝',
-    name: '팀의 심장',
+    name: '님 hoxy 케리아?',
     description: '누적 어시스트 1위',
     colorKey: 'pink',
     getValue: (s) => s.totalAssists,
@@ -131,7 +131,7 @@ const NICKNAME_DEFS: NicknameDefinition[] = [
   {
     id: 'ccmaster',
     emoji: '🌀',
-    name: 'CC 달인',
+    name: '꼼짝마!',
     description: '누적 CC 기여 1위',
     colorKey: 'purple',
     getValue: (s) => s.totalCcScore,
@@ -141,7 +141,7 @@ const NICKNAME_DEFS: NicknameDefinition[] = [
   {
     id: 'bomb',
     emoji: '💀',
-    name: '인간 폭탄',
+    name: '죽으면서 강해진다',
     description: '누적 데스 1위',
     colorKey: 'rose',
     getValue: (s) => s.totalDeaths,

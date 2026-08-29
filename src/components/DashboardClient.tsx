@@ -387,7 +387,7 @@ function HallOfFame({ nicknames }: { nicknames: NicknameAward[] }) {
       {nicknames.map(award => (
         <div key={award.id} className={`toss-hall-card toss-hall-${award.borderColor.replace('border-', '').replace('-700', '')} bg-gradient-to-br ${award.color} rounded-xl p-3 border ${award.borderColor}`}>
           <div className="text-2xl mb-1">{award.emoji}</div>
-          <div className={`text-xs font-bold ${award.textColor}`}>{award.name}</div>
+          <div className={`text-xs font-bold break-words leading-tight ${award.textColor}`}>{award.name}</div>
           <div className="text-xs text-gray-400 mb-1 leading-tight">{award.description}</div>
           <div className="text-white font-semibold text-sm">{award.winner}</div>
           <div className="text-xs text-gray-300">{award.valueLabel}</div>
@@ -571,7 +571,7 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
       {/* ── 명예의 전당 ── */}
       <section>
         <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-base font-semibold text-gray-300">🏛️ 우리들의 레전드관</h2>
+          <h2 className="text-base font-semibold text-gray-300">🏛️ 마일스톤</h2>
           <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">역대 기록</span>
         </div>
         <HallOfFame nicknames={initialNicknames} />
@@ -580,7 +580,7 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
       {/* ── 뱃지 리더보드 ── */}
       <section>
         <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-base font-semibold text-gray-300">🏅 훈장 수집 랭킹</h2>
+          <h2 className="text-base font-semibold text-gray-300">🏅 메달리스트</h2>
           <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">누가 제일 많이 모았나</span>
         </div>
         <BadgeLeaderboard games={allGames} players={orderedPlayers} />
