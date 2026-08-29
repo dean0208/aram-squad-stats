@@ -620,20 +620,26 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
 
       {/* ── 명예의 전당 ── */}
       <section>
-        <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-base font-semibold text-gray-300">🏛️ 마일스톤</h2>
-          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">역대 기록</span>
-        </div>
-        <HallOfFame nicknames={initialNicknames} />
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl px-1 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 [&::-webkit-details-marker]:hidden">
+            <h2 className="text-base font-semibold text-gray-300">🏛️ 마일스톤</h2>
+            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">역대 기록</span>
+            <span className="ml-auto text-sm text-gray-500 transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
+          </summary>
+          <div className="mt-3"><HallOfFame nicknames={initialNicknames} /></div>
+        </details>
       </section>
 
       {/* ── 뱃지 리더보드 ── */}
       <section>
-        <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-base font-semibold text-gray-300">🏅 메달리스트</h2>
-          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">누가 제일 많이 모았나</span>
-        </div>
-        <BadgeLeaderboard games={allGames} players={orderedPlayers} />
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl px-1 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 [&::-webkit-details-marker]:hidden">
+            <h2 className="text-base font-semibold text-gray-300">🏅 메달리스트</h2>
+            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">누가 제일 많이 모았나</span>
+            <span className="ml-auto text-sm text-gray-500 transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
+          </summary>
+          <div className="mt-3"><BadgeLeaderboard games={allGames} players={orderedPlayers} /></div>
+        </details>
       </section>
 
     </div>
