@@ -2,20 +2,27 @@ import { DDRAGON_BASE } from './config'
 
 export type ChampionNameMap = Record<string, string>
 
-export async function fetchChampionNames(): Promise<ChampionNameMap> {
+export interface ChampionCatalogEntry {
+  id: string
+  name: string
+  tags: string[]
+}
+
+export async function fetchChampionCatalog(): Promise<ChampionCatalogEntry[]> {
   try {
     const response = await fetch(`${DDRAGON_BASE}/data/ko_KR/champion.json`, {
       next: { revalidate: 86400 },
     })
     const data = await response.json()
-    const names: ChampionNameMap = {}
-    for (const champion of Object.values(data.data) as { id: string; name: string }[]) {
-      names[champion.id] = champion.name
-    }
-    return names
+    return Object.values(data.data) as ChampionCatalogEntry[]
   } catch {
-    return {}
+    return []
   }
+}
+
+export async function fetchChampionNames(): Promise<ChampionNameMap> {
+  const catalog = await fetchChampionCatalog()
+  return Object.fromEntries(catalog.map(champion => [champion.id, champion.name]))
 }
 
 export function getChampionDisplayName(name: string, names: ChampionNameMap): string {

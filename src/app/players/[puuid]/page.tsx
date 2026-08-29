@@ -4,7 +4,8 @@ import Image from 'next/image'
 import { createServerClient } from '@/lib/supabase'
 import { DDRAGON_VERSION, getPlayerDisplayName } from '@/lib/config'
 import { toDisplayContributionScore } from '@/lib/displayScore'
-import { fetchChampionNames, getChampionDisplayName } from '@/lib/championNames'
+import { fetchChampionCatalog, getChampionDisplayName } from '@/lib/championNames'
+import { recommendChampion } from '@/lib/championRecommendations'
 import type { ChampionReport, Game } from '@/lib/types'
 import { computeNicknames } from '@/lib/nicknames'
 import type { NicknameAward } from '@/lib/nicknames'
@@ -103,7 +104,8 @@ export default async function PlayerReportPage({
     .single()
 
   if (!player) notFound()
-  const championNames = await fetchChampionNames()
+  const championCatalog = await fetchChampionCatalog()
+  const championNames = Object.fromEntries(championCatalog.map(champion => [champion.id, champion.name]))
 
   // Get all game results for this player with game info
   const { data: results } = await supabase
@@ -239,6 +241,8 @@ export default async function PlayerReportPage({
     }))
     .sort((a, b) => b.games - a.games)
 
+  const recommendation = recommendChampion(championReport, championCatalog)
+
   const totalGames = results?.length ?? 0
   const totalWins = championReport.reduce((a, c) => a + c.wins, 0)
   const overallWinRate = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0
@@ -284,6 +288,16 @@ export default async function PlayerReportPage({
           </div>
         </div>
       </div>
+
+      {recommendation && (
+        <div className="bg-blue-50 rounded-2xl border border-blue-200 px-5 py-4">
+          <div className="text-xs font-semibold text-blue-500 mb-2">🧭 한줄 분석</div>
+          <div className="flex items-center gap-3">
+            <ChampionIcon name={recommendation.championId} size={40} />
+            <p className="text-sm font-medium text-gray-700 leading-relaxed">{recommendation.reason}</p>
+          </div>
+        </div>
+      )}
 
       {/* Nickname Badges */}
       {myNicknames.length > 0 && (
