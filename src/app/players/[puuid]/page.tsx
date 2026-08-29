@@ -10,7 +10,7 @@ import type { ChampionReport, Game } from '@/lib/types'
 import { computeNicknames } from '@/lib/nicknames'
 import type { NicknameAward } from '@/lib/nicknames'
 import { analyzeRecentFiveGames } from '@/lib/playerInsights'
-import { calculateFormTrend, type FormTrend } from '@/lib/formTrend'
+
 
 function ChampionIcon({ name, size = 32 }: { name: string; size?: number }) {
   const safeName = name.replace(/[^a-zA-Z0-9]/g, '')
@@ -26,10 +26,8 @@ function ChampionIcon({ name, size = 32 }: { name: string; size?: number }) {
   )
 }
 
-function FormTrendCard({ scores, trend, metrics }: {
+function FormTrendCard({ scores }: {
   scores: number[]
-  trend: FormTrend
-  metrics: { damage: number; kda: number; deaths: number }
 }) {
   if (!scores.length) return null
   return (
@@ -37,13 +35,7 @@ function FormTrendCard({ scores, trend, metrics }: {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-violet-950">📈 요즘 폼 어때?</h2>
-          <p className="mt-0.5 text-xs text-violet-700">최근 {scores.length}경기 기여도 점수 흐름</p>
-        </div>
-        <div className="text-right">
-          <div className={`text-3xl font-black leading-none ${trend.delta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {trend.delta > 0 ? '+' : ''}{trend.delta}
-          </div>
-          <div className="mt-1 text-xs text-violet-700">기여도 점수 변화</div>
+          <p className="mt-0.5 text-xs text-violet-700">최근 {scores.length}경기 기여도 점수</p>
         </div>
       </div>
       <div className="mt-4 rounded-xl bg-white/60 px-2 py-2">
@@ -66,17 +58,10 @@ function FormTrendCard({ scores, trend, metrics }: {
               <text x={scores.length === 1 ? 200 : 10 + (index / (scores.length - 1)) * 380} y={Math.max(13, 117 - Math.max(0, Math.min(100, score)) * 1.05)} textAnchor="middle" fontSize="10" fill="#5b21b6">{Math.round(score)}</text>
             </g>
           ))}
-          <text x="10" y="138" fontSize="10" fill="#6d28d9">최근</text>
-          <text x="390" y="138" textAnchor="end" fontSize="10" fill="#6d28d9">10경기 전</text>
+          <text x="10" y="138" fontSize="10" fill="#6d28d9">과거</text>
+          <text x="390" y="138" textAnchor="end" fontSize="10" fill="#6d28d9">최신</text>
         </svg>
       </div>
-      <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-xl bg-white/70 px-2 py-2"><div className="text-xs text-violet-700">평균 딜량</div><div className="text-sm font-bold text-violet-950">{Math.round(metrics.damage / 1000)}k</div></div>
-        <div className="rounded-xl bg-white/70 px-2 py-2"><div className="text-xs text-violet-700">평균 KDA</div><div className="text-sm font-bold text-violet-950">{metrics.kda}</div></div>
-        <div className="rounded-xl bg-white/70 px-2 py-2"><div className="text-xs text-violet-700">평균 데스</div><div className="text-sm font-bold text-violet-950">{metrics.deaths}</div></div>
-      </div>
-      <p className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-sm font-medium leading-relaxed text-violet-950">{trend.message}</p>
-      <p className="mt-1 text-xs text-violet-700">최근 평균 {trend.recentAverage}점 · 비교 기준 {trend.baselineAverage}점</p>
     </div>
   )
 }
@@ -349,18 +334,7 @@ export default async function PlayerReportPage({
     })
   const formResults = allFormResults.slice(0, 10)
   const formScores = formResults.map(result => toDisplayContributionScore(result.contribution_score))
-  const baselineResults = allFormResults.slice(10, 20)
-  const formTrend = calculateFormTrend(
-    formScores,
-    baselineResults.map(result => toDisplayContributionScore(result.contribution_score)),
-  )
-  const formMetrics = {
-    damage: formResults.length ? formResults.reduce((sum, result) => sum + result.damage_dealt, 0) / formResults.length : 0,
-    deaths: formResults.length ? Math.round((formResults.reduce((sum, result) => sum + result.deaths, 0) / formResults.length) * 10) / 10 : 0,
-    kda: formResults.length
-      ? Math.round((formResults.reduce((sum, result) => sum + result.kills + result.assists, 0) / Math.max(1, formResults.reduce((sum, result) => sum + result.deaths, 0))) * 10) / 10
-      : 0,
-  }
+  const formTrendScores = formScores.slice().reverse()
 
   const totalGames = results?.length ?? 0
   const totalWins = championReport.reduce((a, c) => a + c.wins, 0)
@@ -418,7 +392,7 @@ export default async function PlayerReportPage({
         </div>
       )}
 
-      <FormTrendCard scores={formScores} trend={formTrend} metrics={formMetrics} />
+      <FormTrendCard scores={formTrendScores} />
 
       {recentFiveSnapshots.length > 0 && (
         <div className="bg-gray-800 rounded-2xl border border-gray-700 px-5 py-4">
