@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { createServerClient } from '@/lib/supabase'
 import { DDRAGON_VERSION, getPlayerDisplayName } from '@/lib/config'
 import { toDisplayContributionScore } from '@/lib/displayScore'
+import { fetchChampionNames, getChampionDisplayName } from '@/lib/championNames'
 import type { ChampionReport, Game } from '@/lib/types'
 import { computeNicknames } from '@/lib/nicknames'
 import type { NicknameAward } from '@/lib/nicknames'
@@ -40,6 +41,7 @@ export default async function PlayerReportPage({
     .single()
 
   if (!player) notFound()
+  const championNames = await fetchChampionNames()
 
   // Get all game results for this player with game info
   const { data: results } = await supabase
@@ -258,7 +260,7 @@ export default async function PlayerReportPage({
               >
                 <ChampionIcon name={c.champion_name} size={36} />
                 <div className="flex-1">
-                  <div className="font-semibold text-white">{c.champion_name}</div>
+                  <div className="font-semibold text-white">{getChampionDisplayName(c.champion_name, championNames)}</div>
                   <div className="text-xs text-orange-300">
                     {c.games} games • {c.high_perf_losses} high-perf losses
                   </div>
@@ -310,7 +312,7 @@ export default async function PlayerReportPage({
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <ChampionIcon name={c.champion_name} size={36} />
-                        <span className="text-white font-medium">{c.champion_name}</span>
+                        <span className="text-white font-medium">{getChampionDisplayName(c.champion_name, championNames)}</span>
                       </div>
                     </td>
                     <td className="px-4 py-4 text-center text-gray-300">{c.games}</td>

@@ -7,6 +7,7 @@ import type { Game, GameResult } from '@/lib/types'
 import type { NicknameAward } from '@/lib/nicknames'
 import { calculateMedals } from '@/lib/medals'
 import { getPlayerDisplayName, TRACKED_PLAYERS, DDRAGON_VERSION } from '@/lib/config'
+import { getChampionDisplayName, type ChampionNameMap } from '@/lib/championNames'
 import { rankContributionChampions } from '@/lib/championStats'
 import { getGrowthStatus } from '@/lib/growth'
 import { selectMvp } from '@/lib/mvp'
@@ -107,7 +108,7 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
   }[stats.growthStatus]
 
   return (
-    <div className="bg-gray-800/60 rounded-2xl p-3 sm:p-4 border border-gray-700 flex flex-col gap-2 h-full hover:border-purple-600/50 transition-colors">
+    <div className="bg-gray-800/60 rounded-2xl p-3 sm:p-4 border border-gray-700 flex flex-col gap-2 h-full cursor-pointer touch-manipulation hover:border-purple-600/50 hover:shadow-lg hover:shadow-blue-100/60 transition-all">
       {/* Header */}
       <div>
         <div className="font-bold text-white text-sm leading-tight">{getPlayerDisplayName(player.puuid, player.game_name)}</div>
@@ -170,13 +171,17 @@ function PlayerProfileCard({ player, allGames, champRoles }: {
         <div className="text-xs leading-tight text-gray-500">평균 기여도</div>
         <div className="text-sm font-semibold text-blue-400">{toDisplayContributionScore(stats.avgContrib)}점</div>
       </div>
+      <div className="flex items-center justify-between text-xs font-medium text-blue-500">
+        <span>상세 프로필</span>
+        <span aria-hidden="true">→</span>
+      </div>
     </div>
   )
 }
 
 // ─── MVP Card ─────────────────────────────────────────────────────────────────
 
-function MvpCard({ games }: { games: Game[] }) {
+function MvpCard({ games, championNames }: { games: Game[]; championNames: ChampionNameMap }) {
   if (!games.length) return null
   const mvpResult = selectMvp(
     games.flatMap(game => game.game_results).filter(result => result.players),
@@ -191,7 +196,7 @@ function MvpCard({ games }: { games: Game[] }) {
         <div className="min-w-0">
           <div className="text-xs text-amber-400 font-semibold uppercase tracking-wider">오늘의 MVP</div>
           <div className="text-white font-bold text-lg leading-tight">{mvpResult.players ? getPlayerDisplayName(mvpResult.players.puuid, mvpResult.players.game_name) : '—'}</div>
-          <div className="text-sm text-amber-300">{mvpResult.champion_name} · {mvpResult.kills}/{mvpResult.deaths}/{mvpResult.assists}</div>
+          <div className="text-sm text-amber-300">{getChampionDisplayName(mvpResult.champion_name, championNames)} · {mvpResult.kills}/{mvpResult.deaths}/{mvpResult.assists}</div>
         </div>
       </div>
       <div className="text-right shrink-0">
@@ -455,9 +460,10 @@ interface Props {
   players: PlayerSummary[]
   initialNicknames: NicknameAward[]
   champRoles: ChampRoleMap
+  championNames: ChampionNameMap
 }
 
-export default function DashboardClient({ allGames, players, initialNicknames, champRoles }: Props) {
+export default function DashboardClient({ allGames, players, initialNicknames, champRoles, championNames }: Props) {
   const availableDates = useMemo(() => {
     const s = new Set<string>()
     for (const g of allGames) s.add(toKSTDateString(g.played_at))
@@ -495,7 +501,12 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
       <section>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           {orderedPlayers.map(p => (
-            <Link key={p.puuid} href={`/players/${encodeURIComponent(p.puuid)}`} className="block">
+            <Link
+              key={p.puuid}
+              href={`/players/${encodeURIComponent(p.puuid)}`}
+              className="group block h-full rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2"
+              aria-label={`${getPlayerDisplayName(p.puuid, p.game_name)} 상세 프로필 보기`}
+            >
               <PlayerProfileCard player={p} allGames={allGames} champRoles={champRoles} />
             </Link>
           ))}
@@ -507,7 +518,7 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
 
       {/* ── 날짜별 콘텐츠 ── */}
       <div key={animKey} className="space-y-4" style={{ animation: 'fadeSlideIn 0.25s ease-out' }}>
-        {filteredGames.length > 0 && <MvpCard games={filteredGames} />}
+        {filteredGames.length > 0 && <MvpCard games={filteredGames} championNames={championNames} />}
         {filteredGames.length > 0 && (
           <DailyPerformance allGames={allGames} filteredGames={filteredGames} players={orderedPlayers} />
         )}

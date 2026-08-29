@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createServerClient } from '@/lib/supabase'
 import { DDRAGON_VERSION, getPlayerDisplayName } from '@/lib/config'
+import { fetchChampionNames, getChampionDisplayName } from '@/lib/championNames'
 import { toDisplayContributionScore } from '@/lib/displayScore'
 import type { Game, GameResult } from '@/lib/types'
 import { calculateMedals } from '@/lib/medals'
@@ -102,6 +103,7 @@ export default async function GameDetailPage({
   if (!game) notFound()
 
   const typedGame = game as unknown as Game
+  const championNames = await fetchChampionNames()
 
   // Sort by contribution score descending to find MVP
   const sortedResults = [...typedGame.game_results].sort(
@@ -216,7 +218,7 @@ export default async function GameDetailPage({
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-2">
                       <ChampionIcon name={result.champion_name} size={36} />
-                      <span className="text-sm text-gray-300">{result.champion_name}</span>
+                      <span className="text-sm text-gray-300">{getChampionDisplayName(result.champion_name, championNames)}</span>
                     </div>
                   </td>
                   <td className="px-4 py-4 text-center">
@@ -298,7 +300,7 @@ export default async function GameDetailPage({
                   <ChampionIcon name={result.champion_name} size={28} />
                   <div>
                     <div className="text-sm text-gray-300 font-medium">
-                      {result.players ? getPlayerDisplayName(result.players.puuid, result.players.game_name) : '—'} ({result.champion_name})
+                      {result.players ? getPlayerDisplayName(result.players.puuid, result.players.game_name) : '—'} ({getChampionDisplayName(result.champion_name, championNames)})
                     </div>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {result.augment_ids.map((augId, i) => (

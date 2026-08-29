@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase'
 import { TRACKED_PLAYERS, DDRAGON_BASE } from '@/lib/config'
+import { fetchChampionNames } from '@/lib/championNames'
 import SyncButton from '@/components/SyncButton'
 import DashboardClient from '@/components/DashboardClient'
 import type { Game } from '@/lib/types'
@@ -90,7 +91,12 @@ async function getPlayers() {
 }
 
 export default async function HomePage() {
-  const [allGames, players, champRoles] = await Promise.all([getAllGames(), getPlayers(), getChampRoles()])
+  const [allGames, players, champRoles, championNames] = await Promise.all([
+    getAllGames(),
+    getPlayers(),
+    getChampRoles(),
+    fetchChampionNames(),
+  ])
   const initialNicknames = computeNicknames(allGames)
 
   return (
@@ -107,6 +113,7 @@ export default async function HomePage() {
         players={players}
         initialNicknames={initialNicknames}
         champRoles={champRoles}
+        championNames={championNames}
       />
     </div>
   )
