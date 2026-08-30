@@ -392,17 +392,13 @@ def main():
     raw_games = get_match_history(session, puuid, FETCH_COUNT)
     print(f"  전체 {len(raw_games)}경기")
 
-    # 6. Mayhem 필터 → 마지막 저장 시점 이후 → game detail → 4인 확인
+    # 6. Mayhem 필터 → 최근 경기 재검사 → game detail → 4인 확인
+    # 서버가 game_results가 비어 있는 기존 games를 복구할 수 있으므로
+    # 마지막 저장 시점 이후만 자르면 안 됩니다. 서버가 완전한 경기를 skip합니다.
     games_payload = []
     mayhem_games = [g for g in raw_games
                     if int(g.get('queueId', g.get('queue', {}).get('id', -1))) == QUEUE_ID]
-    # 마지막 저장 시점 이후 게임만
-    if last_game_creation > 0:
-        new_games = [g for g in mayhem_games if int(g.get('gameCreation', 0)) > last_game_creation]
-        print(f"  Mayhem 전체:{len(mayhem_games)}개 → 새 게임:{len(new_games)}개 (마지막 저장 이후)")
-        mayhem_games = new_games
-    else:
-        print(f"  Mayhem 경기: {len(mayhem_games)}개")
+    print(f"  Mayhem 경기: {len(mayhem_games)}개 (기존 빈 결과 복구 포함)")
 
     for raw in mayhem_games:
         game_id = raw.get('gameId')
