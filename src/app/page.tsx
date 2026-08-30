@@ -7,6 +7,8 @@ import type { Game } from '@/lib/types'
 import { computeNicknames } from '@/lib/nicknames'
 import Link from 'next/link'
 
+export const dynamic = 'force-dynamic'
+
 // DDragon tag → Korean role
 const TAG_KO: Record<string, { label: string; emoji: string; damageType: 'AD' | 'AP' | 'Tank' | 'Utility' }> = {
   Marksman: { label: '원딜',   emoji: '🏹', damageType: 'AD' },
