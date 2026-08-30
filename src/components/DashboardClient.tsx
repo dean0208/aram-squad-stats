@@ -16,6 +16,7 @@ import { assignPlayerTitles, type PlayerTitle } from '@/lib/playerTitles'
 import { getAugmentHighlight, getAugmentName } from '@/lib/augmentHighlight'
 import { getGameCommentary } from '@/lib/gameCommentary'
 import { analyzeTeamComposition, getBestChampionComposition, getBestRoleByPlayer, getWorstRoleByPlayer, type DamageType } from '@/lib/teamInsights'
+import { getLatestGameDate, toKSTDateString } from '@/lib/dateSelection'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -25,10 +26,6 @@ function formatDuration(s: number) {
 function formatStartTime(iso: string) {
   return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
 }
-function toKSTDateString(iso: string) {
-  return new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
-}
-function todayKST() { return toKSTDateString(new Date().toISOString()) }
 function formatDisplayDate(ymd: string) {
   const [y, m, d] = ymd.split('-')
   return `${y}년 ${parseInt(m)}월 ${parseInt(d)}일`
@@ -669,18 +666,19 @@ interface Props {
 export default function DashboardClient({ allGames, players, initialNicknames, champRoles, championNames }: Props) {
   const availableDates = useMemo(() => {
     const s = new Set<string>()
-    for (const g of allGames) s.add(toKSTDateString(g.played_at))
+    for (const g of allGames) {
+      const date = toKSTDateString(g.played_at)
+      if (date) s.add(date)
+    }
     return s
   }, [allGames])
 
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const dates = allGames.map(g => toKSTDateString(g.played_at)).sort()
-    return dates[dates.length - 1] ?? todayKST()
+    return getLatestGameDate(allGames)
   })
 
   useEffect(() => {
-    const dates = allGames.map(g => toKSTDateString(g.played_at)).sort()
-    const timer = window.setTimeout(() => setSelectedDate(dates[dates.length - 1] ?? todayKST()), 0)
+    const timer = window.setTimeout(() => setSelectedDate(getLatestGameDate(allGames)), 0)
     return () => window.clearTimeout(timer)
   }, [allGames])
 
