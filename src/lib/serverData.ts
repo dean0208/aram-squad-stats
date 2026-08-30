@@ -34,25 +34,32 @@ const GAME_SELECT = `
 `
 
 export async function getServerGames(limit = 500): Promise<Game[]> {
-  const supabase = createServerClient()
-  const { data } = await supabase
-    .from('games')
-    .select(GAME_SELECT)
-    .order('played_at', { ascending: false })
-    .limit(limit)
-
-  return (data ?? []) as unknown as Game[]
+  try {
+    const supabase = createServerClient()
+    const { data } = await supabase
+      .from('games')
+      .select(GAME_SELECT)
+      .order('played_at', { ascending: false })
+      .limit(limit)
+    return (data ?? []) as unknown as Game[]
+  } catch {
+    return []
+  }
 }
 
 export async function getServerPlayers() {
-  const supabase = createServerClient()
-  const { data } = await supabase
-    .from('players')
-    .select('id, puuid, game_name, tag_line')
+  try {
+    const supabase = createServerClient()
+    const { data } = await supabase
+      .from('players')
+      .select('id, puuid, game_name, tag_line')
 
-  return [...(data ?? [])].sort((a, b) => {
-    const ai = TRACKED_PLAYERS.findIndex(player => player.puuid === a.puuid)
-    const bi = TRACKED_PLAYERS.findIndex(player => player.puuid === b.puuid)
-    return ai - bi
-  })
+    return [...(data ?? [])].sort((a, b) => {
+      const ai = TRACKED_PLAYERS.findIndex(player => player.puuid === a.puuid)
+      const bi = TRACKED_PLAYERS.findIndex(player => player.puuid === b.puuid)
+      return ai - bi
+    })
+  } catch {
+    return []
+  }
 }

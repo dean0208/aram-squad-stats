@@ -40,7 +40,12 @@ async function getChampRoles(): Promise<Record<string, { label: string; emoji: s
 }
 
 async function getAllGames(): Promise<Game[]> {
-  const supabase = createServerClient()
+  let supabase
+  try {
+    supabase = createServerClient()
+  } catch {
+    return []
+  }
 
   const { data: games } = await supabase
     .from('games')
@@ -83,7 +88,12 @@ async function getAllGames(): Promise<Game[]> {
 }
 
 async function getPlayers() {
-  const supabase = createServerClient()
+  let supabase
+  try {
+    supabase = createServerClient()
+  } catch {
+    return []
+  }
   const { data: players } = await supabase
     .from('players')
     .select('id, puuid, game_name, tag_line')
