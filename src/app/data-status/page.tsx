@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { getServerGames } from '@/lib/serverData'
 
+export const dynamic = 'force-dynamic'
+
 export default async function DataStatusPage() {
   const games = await getServerGames()
   const complete = games.filter(game => game.game_results.filter(result => result.players).length >= 4).length

@@ -3,6 +3,8 @@ import { getServerGames } from '@/lib/serverData'
 import { computeNicknames } from '@/lib/nicknames'
 import { getPlayerDisplayName } from '@/lib/config'
 
+export const dynamic = 'force-dynamic'
+
 export default async function RecordsPage() {
   const awards = computeNicknames(await getServerGames())
   return (

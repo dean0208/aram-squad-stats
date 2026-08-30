@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { getServerPlayers } from '@/lib/serverData'
 import { getPlayerDisplayName } from '@/lib/config'
 
+export const dynamic = 'force-dynamic'
+
 export default async function PlayersPage() {
   const players = await getServerPlayers()
   return (

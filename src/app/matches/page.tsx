@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { getServerGames } from '@/lib/serverData'
 
+export const dynamic = 'force-dynamic'
+
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat('ko-KR', {
     timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
