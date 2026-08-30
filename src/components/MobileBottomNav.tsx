@@ -1,10 +1,10 @@
-'use client'
+import Link from 'next/link'
 
 const NAV_ITEMS = [
-  { href: '#home', label: '홈', icon: '⌂' },
-  { href: '#matches', label: '경기', icon: '▤' },
-  { href: '#players', label: '선수', icon: '♙' },
-  { href: '#records', label: '기록', icon: '🏆' },
+  { href: '/', label: '홈', icon: '⌂' },
+  { href: '/matches', label: '경기', icon: '▤' },
+  { href: '/players', label: '선수', icon: '♙' },
+  { href: '/records', label: '기록', icon: '🏆' },
 ]
 
 export default function MobileBottomNav() {
@@ -15,14 +15,14 @@ export default function MobileBottomNav() {
     >
       <div className="mx-auto grid max-w-md grid-cols-4">
         {NAV_ITEMS.map(item => (
-          <a
+          <Link
             key={item.href}
             href={item.href}
             className="flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-xl text-xs font-medium text-[#4e5968] transition-colors hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
           >
             <span aria-hidden="true" className="text-lg leading-none">{item.icon}</span>
             <span>{item.label}</span>
-          </a>
+          </Link>
         ))}
       </div>
     </nav>
