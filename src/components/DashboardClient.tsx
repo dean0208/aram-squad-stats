@@ -22,6 +22,9 @@ import { analyzeTeamComposition, getBestChampionComposition, getBestRoleByPlayer
 function formatDuration(s: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
+function formatStartTime(iso: string) {
+  return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
+}
 function toKSTDateString(iso: string) {
   return new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
@@ -285,6 +288,7 @@ function GameRow({ game, champRoles }: { game: Game; champRoles: ChampRoleMap })
       damageType: champRoles[result.champion_name]?.damageType ?? 'Utility',
     })),
   })
+  const hasPartialData = game.game_results.filter(result => result.players).length < 4
 
   return (
     <div className={`rounded-xl border overflow-hidden ${wins ? 'border-green-800/60' : 'border-red-900/60'}`}>
@@ -297,7 +301,9 @@ function GameRow({ game, champRoles }: { game: Game; champRoles: ChampRoleMap })
         <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${wins ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
           {wins ? 'WIN' : 'LOSS'}
         </span>
+        <span className="text-gray-500 text-xs shrink-0">{formatStartTime(game.played_at)}</span>
         <span className="text-gray-500 text-xs shrink-0">{formatDuration(game.duration_seconds)}</span>
+        {hasPartialData && <span className="rounded-full bg-orange-50 px-2 py-1 text-[11px] font-semibold text-orange-700">일부 지표 누락</span>}
         {mvp && (
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <ChampionIcon name={mvp.champion_name} size={24} />
@@ -686,7 +692,7 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
     <div className="space-y-6">
 
       {/* ── 플레이어 프로필 (고정) ── */}
-      <section>
+      <section id="players">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           {orderedPlayers.map(p => (
             <Link
@@ -717,14 +723,14 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
         {filteredGames.length > 0 && (
           <DailyPerformance allGames={allGames} filteredGames={filteredGames} players={orderedPlayers} />
         )}
-        <section>
+        <section id="matches">
           <div className="flex items-center gap-2 mb-3">
             <h2 className="text-base font-semibold text-gray-300">당일 게임</h2>
-            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">{filteredGames.length}경기</span>
+            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">{filteredGames.length > 5 ? `최신 5 / ${filteredGames.length}경기` : `${filteredGames.length}경기`}</span>
           </div>
           {filteredGames.length === 0
             ? <p className="text-gray-500 text-center py-8 text-sm">해당 날짜에 기록된 게임이 없습니다</p>
-            : <div className="space-y-2">{filteredGames.map(g => <GameRow key={g.id} game={g} champRoles={champRoles} />)}</div>
+            : <div className="space-y-2">{filteredGames.slice(0, 5).map(g => <GameRow key={g.id} game={g} champRoles={champRoles} />)}</div>
           }
         </section>
         <BestCompositionCard games={allGames} championNames={championNames} />
@@ -732,7 +738,7 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
       </div>
 
       {/* ── 명예의 전당 ── */}
-      <section>
+      <section id="records">
         <details className="group">
           <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl px-1 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 [&::-webkit-details-marker]:hidden">
             <h2 className="text-base font-semibold text-gray-300">🏛️ 마일스톤</h2>

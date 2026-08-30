@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import Link from 'next/link'
+import MobileBottomNav from '@/components/MobileBottomNav'
 import './globals.css'
 
 const geistSans = Geist({
@@ -27,9 +28,10 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
             마 좀 치나?
           </Link>
         </nav>
-        <main className="flex-1 container mx-auto px-4 py-8 max-w-6xl">
+        <main id="home" className="flex-1 container mx-auto px-4 pb-24 pt-8 max-w-6xl sm:pb-8">
           {children}
         </main>
+        <MobileBottomNav />
       </body>
     </html>
   )
