@@ -5,6 +5,7 @@ import SyncButton from '@/components/SyncButton'
 import DashboardClient from '@/components/DashboardClient'
 import type { Game } from '@/lib/types'
 import { computeNicknames } from '@/lib/nicknames'
+import Link from 'next/link'
 
 // DDragon tag → Korean role
 const TAG_KO: Record<string, { label: string; emoji: string; damageType: 'AD' | 'AP' | 'Tank' | 'Utility' }> = {
@@ -112,7 +113,12 @@ export default async function HomePage() {
           <p className="text-sm text-[#6b7684] mt-1">OCE · 4인 ARAM: Mayhem</p>
           <p className="mt-1 text-xs text-[#8b95a1]">마지막 저장 경기 · {formatSavedAt(allGames[0]?.played_at)}</p>
         </div>
-        <SyncButton />
+        <div className="flex items-center gap-2">
+          <Link href="/data-status" className="hidden rounded-lg px-2 py-1 text-xs font-medium text-[#4e5968] hover:bg-[#f2f4f6] sm:inline-flex">
+            데이터 상태
+          </Link>
+          <SyncButton />
+        </div>
       </div>
       <DashboardClient
         allGames={allGames}
