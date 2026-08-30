@@ -544,6 +544,33 @@ function DateNavigator({ selectedDate, availableDates, onChange }: {
   )
 }
 
+function SquadSummaryCard({ games }: { games: Game[] }) {
+  if (!games.length) return null
+  const wins = games.filter(game => game.our_team_win).length
+  const averageDuration = games.reduce((sum, game) => sum + game.duration_seconds, 0) / games.length
+  const recentResults = games.slice(0, 10)
+  return (
+    <section aria-labelledby="squad-summary-title" className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 sm:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 id="squad-summary-title" className="text-base font-semibold text-blue-950">📊 스쿼드 요약</h2>
+          <p className="mt-0.5 text-xs text-blue-700">저장된 전체 경기 기준</p>
+        </div>
+        <div className="text-right text-sm font-semibold text-blue-950">{games.length}전 {wins}승 {games.length - wins}패 · 승률 {Math.round((wins / games.length) * 100)}%</div>
+      </div>
+      <div className="mt-3 flex items-center gap-1.5" aria-label="최근 10경기 승패 흐름">
+        {recentResults.map(game => (
+          <span key={game.id} title={game.our_team_win ? '승리' : '패배'} className={`h-2.5 flex-1 rounded-full ${game.our_team_win ? 'bg-green-500' : 'bg-red-400'}`} />
+        ))}
+      </div>
+      <div className="mt-2 flex justify-between text-xs text-blue-700">
+        <span>최근 10경기 · 왼쪽이 최신</span>
+        <span>평균 {formatDuration(Math.round(averageDuration))}</span>
+      </div>
+    </section>
+  )
+}
+
 // ─── Hall of Fame ─────────────────────────────────────────────────────────────
 
 function HallOfFame({ nicknames }: { nicknames: NicknameAward[] }) {
@@ -690,6 +717,8 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
 
   return (
     <div className="space-y-6">
+
+      <SquadSummaryCard games={allGames} />
 
       {/* ── 플레이어 프로필 (고정) ── */}
       <section id="players">

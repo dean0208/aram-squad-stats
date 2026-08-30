@@ -16,6 +16,11 @@ const TAG_KO: Record<string, { label: string; emoji: string; damageType: 'AD' | 
   Assassin: { label: '암살자', emoji: '🗡️', damageType: 'AD' },
 }
 
+function formatSavedAt(iso?: string) {
+  if (!iso) return '저장된 경기 없음'
+  return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
+}
+
 async function getChampRoles(): Promise<Record<string, { label: string; emoji: string; damageType: 'AD' | 'AP' | 'Tank' | 'Utility' }>> {
   try {
     const res = await fetch(`${DDRAGON_BASE}/data/en_US/champion.json`, { next: { revalidate: 86400 } })
@@ -104,7 +109,8 @@ export default async function HomePage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#191f28]">마 좀 치나?</h1>
-          <p className="text-sm text-[#6b7684] mt-1">OCE server · 4-stack ARAM tracker</p>
+          <p className="text-sm text-[#6b7684] mt-1">OCE · 4인 ARAM: Mayhem</p>
+          <p className="mt-1 text-xs text-[#8b95a1]">마지막 저장 경기 · {formatSavedAt(allGames[0]?.played_at)}</p>
         </div>
         <SyncButton />
       </div>
