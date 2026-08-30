@@ -62,7 +62,12 @@ export default async function GameDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = createServerClient()
+  let supabase
+  try {
+    supabase = createServerClient()
+  } catch {
+    notFound()
+  }
 
   const { data: game } = await supabase
     .from('games')
