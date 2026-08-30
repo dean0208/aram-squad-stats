@@ -218,7 +218,6 @@ export async function POST(request: NextRequest) {
           gold_earned: p.goldEarned,
           cc_score: p.totalTimeCCDealt,
           augment_ids: lcuP.augments ?? [],
-          item_ids: lcuP.itemIds ?? [],
           perf_score: Math.round(perf * 10) / 10,
           contribution_score: contribution,
         })
