@@ -7,6 +7,7 @@ import { fetchChampionNames, getChampionDisplayName } from '@/lib/championNames'
 import { toDisplayContributionScore } from '@/lib/displayScore'
 import type { Game, GameResult } from '@/lib/types'
 import { calculateMedals } from '@/lib/medals'
+import { normalizeGame } from '@/lib/normalized'
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -103,6 +104,7 @@ export default async function GameDetailPage({
   if (!game) notFound()
 
   const typedGame = game as unknown as Game
+  const normalizedGame = normalizeGame(typedGame)
   const championNames = await fetchChampionNames()
 
   // Sort by contribution score descending to find MVP
@@ -162,10 +164,18 @@ export default async function GameDetailPage({
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#e5e8eb] bg-white px-4 py-3 text-sm text-[#4e5968]">
+        <span className="font-semibold text-[#191f28]">데이터 상태</span>
+        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${normalizedGame.dataQuality === 'COMPLETE' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+          {normalizedGame.dataQuality === 'COMPLETE' ? '완전 데이터' : '부분 데이터'}
+        </span>
+        {normalizedGame.dataQuality !== 'COMPLETE' && <span>선수 또는 챔피언 원본 정보가 일부 없습니다.</span>}
+      </div>
+
       {/* Player Scores Table */}
       <div className="bg-gray-800 rounded-2xl border border-gray-700 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-700">
-          <h2 className="text-lg font-semibold text-white">Player Breakdown</h2>
+          <h2 className="text-lg font-semibold text-white">플레이어 기여도</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
