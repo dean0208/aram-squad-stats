@@ -6,6 +6,8 @@ import DashboardClient from '@/components/DashboardClient'
 import type { Game } from '@/lib/types'
 import { computeNicknames } from '@/lib/nicknames'
 
+export const dynamic = 'force-dynamic'
+
 // DDragon tag → Korean role
 const TAG_KO: Record<string, { label: string; emoji: string; damageType: 'AD' | 'AP' | 'Tank' | 'Utility' }> = {
   Marksman: { label: '원딜',   emoji: '🏹', damageType: 'AD' },
