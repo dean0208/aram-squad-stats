@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase'
 import { TRACKED_PLAYERS, DDRAGON_BASE } from '@/lib/config'
 import { calcPerfScore, calcContributionScore } from '@/lib/riot'
 import type { RiotParticipant } from '@/lib/riot'
+import { resolveTrackedParticipants } from '@/lib/lcuSyncMapping'
 
 // ─── Types (LCU normalized payload) ──────────────────────────────────────────
 
@@ -90,13 +91,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // upsert 직후 실제 DB ID를 다시 읽어 결과 저장에 사용한다.
+    const { data: refreshedPlayerRows } = await supabase
+      .from('players')
+      .select('id, puuid')
+      .in('puuid', TRACKED_PLAYERS.map((p) => p.puuid))
+    playerIdMap.clear()
+    for (const row of refreshedPlayerRows ?? []) playerIdMap.set(row.puuid, row.id)
+    if (playerIdMap.size !== TRACKED_PLAYERS.length) {
+      return Response.json({ synced: 0, skipped: body.games.length, errors: ['4명 플레이어 ID를 모두 확인하지 못했습니다.'] })
+    }
+
     // 이미 저장된 match_id 목록
     const incomingIds = body.games.map((g) => g.gameId)
     const { data: existing } = await supabase
       .from('games')
-      .select('match_id')
+      .select('id, match_id')
       .in('match_id', incomingIds)
-    const existingSet = new Set((existing ?? []).map((g) => g.match_id))
+    const existingByMatchId = new Map((existing ?? []).map((g) => [g.match_id, g.id]))
 
     const TRACKED_PUUID_SET = new Set(TRACKED_PLAYERS.map((p) => p.puuid))
     // gameName → Riot PUUID 매핑 (LCU puuid는 다른 포맷이라 gameName으로 조회)
@@ -107,13 +119,9 @@ export async function POST(request: NextRequest) {
     const errors: string[] = []
 
     for (const game of body.games) {
-      if (existingSet.has(game.gameId)) { skipped++; continue }
-
-      // 4명 모두 있는지 gameName 기준으로 확인
-      const tracked = game.participants.filter((p) =>
-        gameNameToPuuid.has(p.gameName ?? '')
-      )
-      if (tracked.length < TRACKED_PLAYERS.length) { skipped++; continue }
+      // 4명 모두 서로 다른 고정 Riot PUUID로 확인
+      const tracked = resolveTrackedParticipants(game.participants, TRACKED_PLAYERS)
+      if (!tracked) { skipped++; continue }
 
       // LCU puuid → Riot puuid 변환 (gameName 경유)
       const participants = game.participants.map((p) => ({
@@ -148,22 +156,33 @@ export async function POST(request: NextRequest) {
       const ourTeamId = [...teamCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
       const ourTeamWin = trackedParticipants.find((p) => p.teamId === ourTeamId)?.win ?? false
 
-      // game 삽입
-      const { data: gameRow, error: gameErr } = await supabase
-        .from('games')
-        .insert({
-          match_id: game.gameId,
-          played_at: new Date(game.gameCreation).toISOString(),
-          duration_seconds: game.gameDuration,
-          our_team_win: ourTeamWin,
-          our_team_id: ourTeamId,
-        })
-        .select('id')
-        .single()
-
-      if (gameErr || !gameRow) {
-        errors.push(`${game.gameId}: ${gameErr?.message}`)
-        continue
+      // 기존 게임은 결과가 비어 있을 때만 복구하고, 결과가 있으면 건너뛴다.
+      const existingGameId = existingByMatchId.get(game.gameId)
+      let gameRow: { id: string } | null = existingGameId ? { id: existingGameId } : null
+      if (existingGameId) {
+        const { count, error: countError } = await supabase
+          .from('game_results')
+          .select('id', { count: 'exact', head: true })
+          .eq('game_id', existingGameId)
+        if (countError) { errors.push(`${game.gameId}: ${countError.message}`); continue }
+        if ((count ?? 0) > 0) { skipped++; continue }
+      } else {
+        const { data: insertedGame, error: gameErr } = await supabase
+          .from('games')
+          .insert({
+            match_id: game.gameId,
+            played_at: new Date(game.gameCreation).toISOString(),
+            duration_seconds: game.gameDuration,
+            our_team_win: ourTeamWin,
+            our_team_id: ourTeamId,
+          })
+          .select('id')
+          .single()
+        if (gameErr || !insertedGame) {
+          errors.push(`${game.gameId}: ${gameErr?.message ?? '게임 저장 실패'}`)
+          continue
+        }
+        gameRow = insertedGame
       }
 
       // 점수 계산
@@ -176,14 +195,17 @@ export async function POST(request: NextRequest) {
       // game_results 삽입
       for (const p of trackedParts) {
         const playerId = playerIdMap.get(p.puuid)
-        if (!playerId) continue
+        if (!playerId) {
+          errors.push(`${game.gameId}: ${p.puuid} 플레이어 ID 누락`)
+          continue
+        }
 
         const lcuP = participants.find((x) => x.puuid === p.puuid)!
         const perf = perfScores.find((ps) => ps.puuid === p.puuid)?.perf ?? 0
         const contribution = calcContributionScore(p.puuid, perfScores)
 
-        await supabase.from('game_results').insert({
-          game_id: gameRow.id,
+        const { error: resultError } = await supabase.from('game_results').insert({
+          game_id: gameRow!.id,
           player_id: playerId,
           champion_id: p.championId,
           champion_name: p.championName,
@@ -200,6 +222,17 @@ export async function POST(request: NextRequest) {
           perf_score: Math.round(perf * 10) / 10,
           contribution_score: contribution,
         })
+        if (resultError) errors.push(`${game.gameId}: ${resultError.message}`)
+      }
+
+      const { count: savedResultCount } = await supabase
+        .from('game_results')
+        .select('id', { count: 'exact', head: true })
+        .eq('game_id', gameRow!.id)
+      if ((savedResultCount ?? 0) !== tracked.length) {
+        if (!existingGameId) await supabase.from('games').delete().eq('id', gameRow!.id)
+        errors.push(`${game.gameId}: 4명 결과 저장 불완전 (${savedResultCount ?? 0}/${tracked.length})`)
+        continue
       }
 
       synced++

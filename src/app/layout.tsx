@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
 import { Geist, Geist_Mono } from 'next/font/google'
 import Link from 'next/link'
 import MobileBottomNav from '@/components/MobileBottomNav'
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
   description: '4인 증바람 게임 기록과 플레이어별 기여도를 분석합니다.',
 }
 
-export default function RootLayout({ children }: LayoutProps<'/'>) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko" className={`${geistSans.variable} ${geistMono.variable} h-full`}>
       <body className="toss-theme min-h-full flex flex-col bg-[#eef1f5] text-[#191f28] antialiased">
