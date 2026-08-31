@@ -755,11 +755,11 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
         <section id="matches">
           <div className="flex items-center gap-2 mb-3">
             <h2 className="text-base font-semibold text-gray-300">당일 게임</h2>
-            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">{filteredGames.length > 5 ? `최신 5 / ${filteredGames.length}경기` : `${filteredGames.length}경기`}</span>
+            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">전체 {filteredGames.length}경기</span>
           </div>
           {filteredGames.length === 0
             ? <p className="text-gray-500 text-center py-8 text-sm">해당 날짜에 기록된 게임이 없습니다</p>
-            : <div className="space-y-2">{filteredGames.slice(0, 5).map(g => <GameRow key={g.id} game={g} champRoles={champRoles} />)}</div>
+            : <div className="space-y-2">{filteredGames.map(g => <GameRow key={g.id} game={g} champRoles={champRoles} />)}</div>
           }
         </section>
         <BestCompositionCard games={allGames} championNames={championNames} />
