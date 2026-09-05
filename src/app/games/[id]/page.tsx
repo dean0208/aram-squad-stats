@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { createServerClient } from '@/lib/supabase'
+import { fetchGameById } from '@/lib/games'
 import { DDRAGON_VERSION, getPlayerDisplayName } from '@/lib/config'
 import { fetchChampionNames, getChampionDisplayName } from '@/lib/championNames'
 import { toDisplayContributionScore } from '@/lib/displayScore'
-import type { Game, GameResult } from '@/lib/types'
+import type { GameResult } from '@/lib/types'
 import { calculateMedals } from '@/lib/medals'
 
 function formatDuration(seconds: number): string {
@@ -61,48 +61,11 @@ export default async function GameDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = createServerClient()
 
-  const { data: game } = await supabase
-    .from('games')
-    .select(
-      `
-      id,
-      match_id,
-      played_at,
-      duration_seconds,
-      our_team_win,
-      our_team_id,
-      game_results (
-        id,
-        champion_name,
-        champion_id,
-        kills,
-        deaths,
-        assists,
-        damage_dealt,
-        damage_taken,
-        healing,
-        gold_earned,
-        cc_score,
-        perf_score,
-        contribution_score,
-        augment_ids,
-        players (
-          id,
-          puuid,
-          game_name,
-          tag_line
-        )
-      )
-    `,
-    )
-    .eq('id', id)
-    .single()
-
+  const game = await fetchGameById(id)
   if (!game) notFound()
 
-  const typedGame = game as unknown as Game
+  const typedGame = game
   const championNames = await fetchChampionNames()
 
   // Sort by contribution score descending to find MVP

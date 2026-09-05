@@ -1,5 +1,7 @@
 import type { Game, GameResult } from './types'
 import { getPlayerDisplayName } from './config'
+import { toDisplayContributionScore } from './displayScore'
+import { computeAwardGap } from './awardGap'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -33,7 +35,12 @@ export interface NicknameAward {
   winner: string       // game_name
   winnerPuuid: string
   valueLabel: string   // formatted value e.g. "총 342회 죽음"
+  /** 2위와의 격차. 접전이면 타이틀을 과대평가하지 않도록 함께 보여준다. */
+  gapRatio: number | null
+  contested: boolean
+  gapLabel: string | null
 }
+
 
 // ─── Color themes ─────────────────────────────────────────────────────────────
 
@@ -74,7 +81,7 @@ const NICKNAME_DEFS: NicknameDefinition[] = [
     description: '누적 기여도 평균 1위 · 종합 MVP',
     colorKey: 'amber',
     getValue: (s) => s.avgContribution,
-    formatValue: (s) => `평균 ${s.avgContribution.toFixed(1)}점`,
+    formatValue: (s) => `평균 ${toDisplayContributionScore(s.avgContribution)}점`,
     direction: 'highest',
   },
   {
@@ -300,6 +307,7 @@ export function computeNicknames(games: Game[]): NicknameAward[] {
 
     // Skip ties
     const winners = eligible.filter((s) => def.getValue(s) === target)
+    const { gapRatio, contested, gapLabel } = computeAwardGap(target, values, def.direction)
     if (winners.length !== 1) continue
 
     const winner = winners[0]
@@ -316,6 +324,9 @@ export function computeNicknames(games: Game[]): NicknameAward[] {
       winner: winner.playerName,
       winnerPuuid: winner.puuid,
       valueLabel: def.formatValue(winner),
+      gapRatio,
+      contested,
+      gapLabel,
     })
   }
 

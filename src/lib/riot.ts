@@ -1,6 +1,7 @@
 import { RIOT_BASE, TRACKED_PUUIDS, TRACKED_PLAYERS, DATA_START_DATE } from './config'
 import { createServerClient } from './supabase'
-import { calculateFairScores } from './scoring'
+import { calculateFairScores, type ScoreOptions } from './scoring'
+import { fetchChampionRoles } from './championRoles'
 
 const riotHeaders = () => ({
   'X-Riot-Token': process.env.RIOT_API_KEY ?? '',
@@ -21,6 +22,9 @@ export interface RiotParticipant {
   totalDamageTaken: number
   totalHeal: number
   totalTimeCCDealt: number
+  /** Match-V5 의 대안 필드명. 일부 응답은 이쪽만 채워 준다. */
+  timeCCingOthers?: number
+  totalTimeCrowdControlDealt?: number
   goldEarned: number
   item0?: number
   item1?: number
@@ -80,12 +84,18 @@ export async function fetchMatchDetail(matchId: string): Promise<RiotMatchDetail
 
 // ─── Score Calculation ────────────────────────────────────────────────────────
 
-/** Calculate a continuous 0-100 score using team-relative contributions. */
-export function calcPerfScore(
-  participant: RiotParticipant,
-  allParticipants: RiotParticipant[],
-): number {
-  return calculateFairScores(allParticipants).get(participant.puuid) ?? 0
+/**
+ * 추적 4인의 0-100 점수를 한 번에 계산한다.
+ *
+ * 저장되는 `game_results` 에는 추적 플레이어만 남으므로, 수집 시점에 10인
+ * 기준으로 계산하면 나중에 같은 점수를 재현할 수 없다. 두 경로가 같은 값을
+ * 내도록 항상 추적 인원만 넘긴다.
+ */
+export function calcTeamPerfScores(
+  trackedParticipants: RiotParticipant[],
+  options: ScoreOptions = {},
+): Map<string, number> {
+  return calculateFairScores(trackedParticipants, options)
 }
 
 /**
@@ -112,6 +122,14 @@ function extractAugmentIds(p: RiotParticipant): number[] {
   return ids
 }
 
+/**
+ * CC 기여 시간을 응답에 실제로 담긴 필드에서 읽는다.
+ * 포맷에 따라 이름이 갈리고, 한쪽만 읽으면 조용히 0으로 저장된다.
+ */
+function resolveCcDealt(p: RiotParticipant): number {
+  return p.totalTimeCCDealt || p.totalTimeCrowdControlDealt || p.timeCCingOthers || 0
+}
+
 function extractItemIds(p: RiotParticipant): number[] {
   return [p.item0, p.item1, p.item2, p.item3, p.item4, p.item5]
     .filter((id): id is number => typeof id === 'number' && id > 0)
@@ -121,6 +139,7 @@ function extractItemIds(p: RiotParticipant): number[] {
 
 export async function syncNewGames(): Promise<{ synced: number; skipped: number }> {
   const supabase = createServerClient()
+  const championRoles = await fetchChampionRoles()
 
   // Ensure players exist in DB
   for (const player of TRACKED_PLAYERS) {
@@ -189,7 +208,12 @@ export async function syncNewGames(): Promise<{ synced: number; skipped: number 
       const match = await fetchMatchDetail(matchId)
 
       const { info } = match
-      const trackedInMatch = info.participants.filter((p) =>
+      // CC 필드명을 먼저 통일해 두면 점수 계산과 저장이 같은 값을 본다.
+      const allParticipants = info.participants.map((p) => ({
+        ...p,
+        totalTimeCCDealt: resolveCcDealt(p),
+      }))
+      const trackedInMatch = allParticipants.filter((p) =>
         TRACKED_PUUIDS.has(p.puuid),
       )
 
@@ -229,10 +253,14 @@ export async function syncNewGames(): Promise<{ synced: number; skipped: number 
         continue
       }
 
-      // Calculate perf scores for tracked players
+      // Calculate perf scores for tracked players (one pass over the match)
+      const matchScores = calcTeamPerfScores(trackedInMatch, {
+        durationSeconds: info.gameDuration,
+        roles: championRoles,
+      })
       const perfScores = trackedInMatch.map((p) => ({
         puuid: p.puuid,
-        perf: calcPerfScore(p, info.participants),
+        perf: matchScores.get(p.puuid) ?? 0,
       }))
 
       // Insert game results for each tracked player

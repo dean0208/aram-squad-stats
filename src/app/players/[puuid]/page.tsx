@@ -6,11 +6,14 @@ import { DDRAGON_VERSION, getPlayerDisplayName } from '@/lib/config'
 import { toDisplayContributionScore } from '@/lib/displayScore'
 import { fetchChampionCatalog, getChampionDisplayName } from '@/lib/championNames'
 import { recommendChampion } from '@/lib/championRecommendations'
-import type { ChampionReport, Game } from '@/lib/types'
-import { computeNicknames } from '@/lib/nicknames'
+import type { ChampionReport } from '@/lib/types'
+import { fetchGames, getCachedNicknames } from '@/lib/games'
 import type { NicknameAward } from '@/lib/nicknames'
 import { analyzeRecentFiveGames } from '@/lib/playerInsights'
 
+
+/** 최근 폼 계산에 필요한 경기 수(최근 10경기)보다 넉넉하게 잡은 조회 구간. */
+const RECENT_GAME_WINDOW = 30
 
 function ChampionIcon({ name, size = 32 }: { name: string; size?: number }) {
   const safeName = name.replace(/[^a-zA-Z0-9]/g, '')
@@ -176,48 +179,14 @@ export default async function PlayerReportPage({
     )
     .eq('player_id', player.id)
 
-  // Fetch all games to compute all-squad nicknames
-  const { data: allGamesRaw } = await supabase
-    .from('games')
-    .select(
-      `
-      id,
-      match_id,
-      played_at,
-      duration_seconds,
-      our_team_win,
-      our_team_id,
-      game_results (
-        id,
-        champion_name,
-        champion_id,
-        kills,
-        deaths,
-        assists,
-        damage_dealt,
-        damage_taken,
-        healing,
-        gold_earned,
-        cc_score,
-        perf_score,
-        contribution_score,
-        augment_ids,
-        players (
-          id,
-          puuid,
-          game_name,
-          tag_line
-        )
-      )
-    `,
-    )
-    .order('played_at', { ascending: false })
-    .limit(500)
-
-  const allGames = (allGamesRaw ?? []) as unknown as Game[]
-  const championCatalog = await championCatalogPromise
+  // 최근 폼/최근 5경기 분석에만 쓰이므로 전체 이력이 아니라 최근 구간만 읽는다.
+  // 저장되는 경기는 4인 전원이 참여한 것뿐이라 이 구간에 본인 결과가 모두 들어 있다.
+  const [recentGames, allNicknames, championCatalog] = await Promise.all([
+    fetchGames(RECENT_GAME_WINDOW),
+    getCachedNicknames(),
+    championCatalogPromise,
+  ])
   const championNames = Object.fromEntries(championCatalog.map(champion => [champion.id, champion.name]))
-  const allNicknames = computeNicknames(allGames)
   const myNicknames: NicknameAward[] = allNicknames.filter(
     (n) => n.winnerPuuid === decodedPuuid,
   )
@@ -301,7 +270,7 @@ export default async function PlayerReportPage({
     Marksman: '원딜', Mage: '마법사', Tank: '탱커', Fighter: '브루저',
     Support: '서포터', Assassin: '암살자',
   } as Record<string, string>)[primaryCatalogEntry?.tags[0] ?? ''] ?? '플레이어'
-  const recentFiveSnapshots = allGames
+  const recentFiveSnapshots = recentGames
     .slice()
     .sort((a, b) => new Date(b.played_at).getTime() - new Date(a.played_at).getTime())
     .flatMap(game => {
@@ -325,7 +294,7 @@ export default async function PlayerReportPage({
     })
     .slice(0, 5)
   const recentAnalysis = analyzeRecentFiveGames(recentFiveSnapshots, roleLabel)
-  const allFormResults = allGames
+  const allFormResults = recentGames
     .slice()
     .sort((a, b) => new Date(b.played_at).getTime() - new Date(a.played_at).getTime())
     .flatMap(game => {

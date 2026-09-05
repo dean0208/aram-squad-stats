@@ -24,12 +24,13 @@
 - Stored result fields: champion, K/D/A, damage dealt/taken, healing, gold, CC score, performance score, contribution score, augment IDs, optional item IDs.
 - Stored `games` fields include `played_at`, duration, team result, and IDs.
 - There is no reliable stored source-updated timestamp per game result. `/api/last-sync` currently reports latest `played_at`, which is not the same as source receive time.
+- All game reads go through `src/lib/games.ts`. List queries select only the two nested player columns they read; detail queries select the full row.
 - LCU/Riot ingestion code exists in `src/lib/riot.ts`, `src/app/api/lcu-sync/route.ts`, and `lcu-agent/lcu_agent.py`. These are out of scope for this redesign.
 
 ## Existing calculations
 
-- `src/lib/scoring.ts`: team-relative score; now has champion-name role heuristics and role-specific weights.
-- `src/lib/displayScore.ts`: converts stored score to a 0–100 display score using `sqrt(raw / 50) * 100`, capped at 100.
+- `src/lib/scoring.ts`: 0-100 score combining tracked-player share (80%), team absolute output (20%), and a death-share penalty. Roles come from DDragon tags via `src/lib/championRoles.ts`; the hardcoded list is a fallback only. Metrics with a zero team total are excluded from the normalizing denominator.
+- `src/lib/displayScore.ts`: rounds only. The model already outputs 0-100, so the old `sqrt(raw / 50)` stretch is gone.
 - `src/lib/mvp.ts`: selects the highest performance score.
 - `src/lib/medals.ts` and `src/lib/nicknames.ts`: milestone/medal aggregation, skip all-zero and tied nickname winners.
 - `src/lib/playerInsights.ts`: deterministic recent-five advice from team-relative damage/deaths and role.
@@ -41,7 +42,8 @@
 - Champion IDs/names use Data Dragon; image URLs use the canonical champion ID.
 - Augment names use a checked-in Korean CommunityDragon-derived map with 643 entries and `증강 #ID` fallback.
 - Item IDs are collected in the LCU payload foundation and schema migration, but the production DB migration has not been confirmed applied and the web queries do not depend on the new column.
-- Unknown champion names are not yet normalized through a single adapter; this is a P0/P1 gap.
+- `cc_score` was stored as 0 for 99% of rows: the agent read Match-V5's `totalTimeCCDealt` while the LCU payload uses `totalTimeCrowdControlDealt`. The agent now reads either. Rows recorded before that fix stay 0 — CC cannot be backfilled from stored data.
+- Champion names/roles resolve against the latest DDragon version (`src/lib/ddragon.ts`); `DDRAGON_VERSION` in config is a pin for image URLs and a fallback. Rows stored as `Champion<id>` under the old pinned version are repaired by `/api/recalculate-scores`.
 
 ## Current UI and mobile risks
 

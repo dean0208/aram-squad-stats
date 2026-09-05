@@ -1,53 +1,10 @@
-import { createServerClient } from '@/lib/supabase'
 import { NextRequest } from 'next/server'
+import { clampGameLimit, fetchGames } from '@/lib/games'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createServerClient()
-
     const { searchParams } = new URL(request.url)
-    const limitParam = searchParams.get('limit')
-    const limit = limitParam ? Math.max(1, Math.min(500, parseInt(limitParam, 10))) : 500
-
-    const { data: games, error } = await supabase
-      .from('games')
-      .select(
-        `
-        id,
-        match_id,
-        played_at,
-        duration_seconds,
-        our_team_win,
-        our_team_id,
-        game_results (
-          id,
-          champion_name,
-          champion_id,
-          kills,
-          deaths,
-          assists,
-          damage_dealt,
-          damage_taken,
-          healing,
-          gold_earned,
-          cc_score,
-          perf_score,
-          contribution_score,
-          augment_ids,
-          players (
-            id,
-            puuid,
-            game_name,
-            tag_line
-          )
-        )
-      `,
-      )
-      .order('played_at', { ascending: false })
-      .limit(limit)
-
-    if (error) throw error
-
+    const games = await fetchGames(clampGameLimit(searchParams.get('limit')))
     return Response.json(games)
   } catch (err) {
     console.error('Games API error:', err)

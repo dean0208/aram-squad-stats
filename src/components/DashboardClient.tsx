@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Game, GameResult } from '@/lib/types'
@@ -104,13 +104,11 @@ function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRo
 
 interface PlayerSummary { id: string; puuid: string; game_name: string; tag_line: string }
 
-function PlayerProfileCard({ player, allGames, champRoles, title }: {
-  player: PlayerSummary; allGames: Game[]; champRoles: ChampRoleMap; title: PlayerTitle
+type PlayerStatsResult = NonNullable<ReturnType<typeof computePlayerStats>>
+
+function PlayerProfileCard({ player, stats, title }: {
+  player: PlayerSummary; stats: PlayerStatsResult | null; title: PlayerTitle
 }) {
-  const stats = useMemo(
-    () => computePlayerStats(player.puuid, allGames, champRoles),
-    [player.puuid, allGames, champRoles]
-  )
   if (!stats) return null
 
   const growthStatusUi = {
@@ -584,6 +582,11 @@ function HallOfFame({ nicknames }: { nicknames: NicknameAward[] }) {
           <div className="text-xs text-gray-400 mb-1 leading-tight">{award.description}</div>
           <div className="text-white font-semibold text-sm">{award.winner}</div>
           <div className="text-xs text-gray-300">{award.valueLabel}</div>
+          {award.gapLabel && (
+            <div className={`mt-1 text-[11px] leading-tight ${award.contested ? 'text-amber-300' : 'text-gray-500'}`}>
+              {award.contested ? `접전 · ${award.gapLabel}` : award.gapLabel}
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -673,16 +676,13 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
     return s
   }, [allGames])
 
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const dates = allGames.map(g => toKSTDateString(g.played_at)).sort()
-    return dates[dates.length - 1] ?? todayKST()
-  })
+  // availableDates 는 이미 전체 날짜를 담고 있으므로 최신 날짜만 뽑아 쓴다.
+  const latestDate = useMemo(
+    () => [...availableDates].sort().pop() ?? todayKST(),
+    [availableDates],
+  )
 
-  useEffect(() => {
-    const dates = allGames.map(g => toKSTDateString(g.played_at)).sort()
-    const timer = window.setTimeout(() => setSelectedDate(dates[dates.length - 1] ?? todayKST()), 0)
-    return () => window.clearTimeout(timer)
-  }, [allGames])
+  const [selectedDate, setSelectedDate] = useState<string>(latestDate)
 
   const [animKey, setAnimKey] = useState(0)
   const handleDateChange = (d: string) => { setSelectedDate(d); setAnimKey(k => k + 1) }
@@ -698,22 +698,28 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
     return ai - bi
   }), [players])
 
-  const playerTitles = useMemo(() => {
-    const titleStats = orderedPlayers.flatMap(player => {
+  // 프로필 카드와 칭호가 같은 통계를 쓰므로 플레이어당 한 번만 계산한다.
+  const statsByPuuid = useMemo(() => {
+    const map = new Map<string, PlayerStatsResult>()
+    for (const player of orderedPlayers) {
       const stats = computePlayerStats(player.puuid, allGames, champRoles)
-      if (!stats) return []
-      return [{
-        puuid: player.puuid,
-        role: stats.role.label,
-        avgDamage: stats.avgDamage,
-        avgTaken: stats.avgTaken,
-        avgHealing: stats.avgHealing,
-        avgCc: stats.avgCc,
-        avgAssist: stats.avgAssist,
-      }]
-    })
-    return assignPlayerTitles(titleStats)
+      if (stats) map.set(player.puuid, stats)
+    }
+    return map
   }, [orderedPlayers, allGames, champRoles])
+
+  const playerTitles = useMemo(
+    () => assignPlayerTitles([...statsByPuuid.entries()].map(([puuid, stats]) => ({
+      puuid,
+      role: stats.role.label,
+      avgDamage: stats.avgDamage,
+      avgTaken: stats.avgTaken,
+      avgHealing: stats.avgHealing,
+      avgCc: stats.avgCc,
+      avgAssist: stats.avgAssist,
+    }))),
+    [statsByPuuid],
+  )
 
   return (
     <div className="space-y-6">
@@ -733,8 +739,7 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
             >
               <PlayerProfileCard
                 player={p}
-                allGames={allGames}
-                champRoles={champRoles}
+                stats={statsByPuuid.get(p.puuid) ?? null}
                 title={playerTitles.get(p.puuid) ?? { emoji: '⚡', label: '든든한 전력' }}
               />
             </Link>
@@ -762,9 +767,13 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
             : <div className="space-y-2">{filteredGames.map(g => <GameRow key={g.id} game={g} champRoles={champRoles} />)}</div>
           }
         </section>
-        <BestCompositionCard games={allGames} championNames={championNames} />
-        <BestRoleCard games={allGames} players={orderedPlayers} champRoles={champRoles} />
       </div>
+
+      {/* 아래 두 카드는 선택 날짜와 무관하게 전체 이력을 쓴다.
+          애니메이션 래퍼 안에 두면 날짜를 바꿀 때마다 리마운트되어
+          전체 경기를 다시 집계하므로 밖에 둔다. */}
+      <BestCompositionCard games={allGames} championNames={championNames} />
+      <BestRoleCard games={allGames} players={orderedPlayers} champRoles={champRoles} />
 
       {/* ── 명예의 전당 ── */}
       <section id="records">

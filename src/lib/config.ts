@@ -45,5 +45,10 @@ export const ACCOUNT_BASE = 'https://asia.api.riotgames.com'
 // Match API는 sea (OCE 서버 라우팅)
 export const RIOT_ROUTING = 'sea'
 export const RIOT_BASE = `https://${RIOT_ROUTING}.api.riotgames.com`
-export const DDRAGON_VERSION = '14.24.1'
+/**
+ * 이미지 URL처럼 동기 컨텍스트에서 쓰는 고정 버전.
+ * 서버 측 이름/역할 조회는 `lib/ddragon.ts` 가 최신 버전을 해석해 쓰므로,
+ * 이 값은 신규 챔피언 아이콘이 깨질 때만 올려주면 된다.
+ */
+export const DDRAGON_VERSION = '16.17.1'
 export const DDRAGON_BASE = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}`

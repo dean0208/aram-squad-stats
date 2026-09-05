@@ -7,6 +7,13 @@ export interface Player {
   tag_line: string
 }
 
+/**
+ * The player row nested inside a game_result. List views select only the two
+ * columns they read, so the rest are present on detail queries only.
+ */
+export type GameResultPlayer = Pick<Player, 'puuid' | 'game_name'> &
+  Partial<Pick<Player, 'id' | 'tag_line'>>
+
 export interface GameResult {
   id: string
   champion_name: string
@@ -23,7 +30,7 @@ export interface GameResult {
   contribution_score: number
   augment_ids: number[]
   item_ids?: number[]
-  players: Player | null
+  players: GameResultPlayer | null
 }
 
 export interface Game {

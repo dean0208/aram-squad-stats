@@ -3,8 +3,7 @@ import { TRACKED_PLAYERS, DDRAGON_BASE } from '@/lib/config'
 import { fetchChampionNames } from '@/lib/championNames'
 import SyncButton from '@/components/SyncButton'
 import DashboardClient from '@/components/DashboardClient'
-import type { Game } from '@/lib/types'
-import { computeNicknames } from '@/lib/nicknames'
+import { fetchGames, getCachedNicknames } from '@/lib/games'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,49 +37,6 @@ async function getChampRoles(): Promise<Record<string, { label: string; emoji: s
   }
 }
 
-async function getAllGames(): Promise<Game[]> {
-  const supabase = createServerClient()
-
-  const { data: games } = await supabase
-    .from('games')
-    .select(
-      `
-      id,
-      match_id,
-      played_at,
-      duration_seconds,
-      our_team_win,
-      our_team_id,
-      game_results (
-        id,
-        champion_name,
-        champion_id,
-        kills,
-        deaths,
-        assists,
-        damage_dealt,
-        damage_taken,
-        healing,
-        gold_earned,
-        cc_score,
-        perf_score,
-        contribution_score,
-        augment_ids,
-        players (
-          id,
-          puuid,
-          game_name,
-          tag_line
-        )
-      )
-    `,
-    )
-    .order('played_at', { ascending: false })
-    .limit(500)
-
-  return (games ?? []) as unknown as Game[]
-}
-
 async function getPlayers() {
   const supabase = createServerClient()
   const { data: players } = await supabase
@@ -98,13 +54,13 @@ async function getPlayers() {
 }
 
 export default async function HomePage() {
-  const [allGames, players, champRoles, championNames] = await Promise.all([
-    getAllGames(),
+  const [allGames, players, champRoles, championNames, initialNicknames] = await Promise.all([
+    fetchGames(),
     getPlayers(),
     getChampRoles(),
     fetchChampionNames(),
+    getCachedNicknames(),
   ])
-  const initialNicknames = computeNicknames(allGames)
 
   return (
     <div className="space-y-6 sm:space-y-8">

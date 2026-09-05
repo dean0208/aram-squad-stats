@@ -1,9 +1,12 @@
 import { NextRequest } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { createServerClient } from '@/lib/supabase'
 import { TRACKED_PLAYERS, DDRAGON_BASE } from '@/lib/config'
-import { calcPerfScore, calcContributionScore } from '@/lib/riot'
+import { calcTeamPerfScores, calcContributionScore } from '@/lib/riot'
 import type { RiotParticipant } from '@/lib/riot'
 import { resolveTrackedParticipants } from '@/lib/lcuSyncMapping'
+import { GAMES_CACHE_TAG } from '@/lib/games'
+import { fetchChampionRoles } from '@/lib/championRoles'
 
 // ─── Types (LCU normalized payload) ──────────────────────────────────────────
 
@@ -72,7 +75,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServerClient()
-    const champNames = await getChampMap()
+    const [champNames, championRoles] = await Promise.all([getChampMap(), fetchChampionRoles()])
 
     // 플레이어 rows 확보
     const { data: playerRows } = await supabase
@@ -185,11 +188,15 @@ export async function POST(request: NextRequest) {
         gameRow = insertedGame
       }
 
-      // 점수 계산
+      // 점수 계산 (경기 전체를 한 번만 계산해서 4명분을 뽑는다)
       const trackedParts = riotParts.filter((p) => TRACKED_PUUID_SET.has(p.puuid))
+      const gameScores = calcTeamPerfScores(trackedParts, {
+        durationSeconds: game.gameDuration,
+        roles: championRoles,
+      })
       const perfScores = trackedParts.map((p) => ({
         puuid: p.puuid,
-        perf: calcPerfScore(p, riotParts),
+        perf: gameScores.get(p.puuid) ?? 0,
       }))
 
       // game_results 삽입
@@ -236,6 +243,8 @@ export async function POST(request: NextRequest) {
 
       synced++
     }
+
+    if (synced > 0) revalidateTag(GAMES_CACHE_TAG, { expire: 0 })
 
     return Response.json({ synced, skipped, errors })
   } catch (err) {
