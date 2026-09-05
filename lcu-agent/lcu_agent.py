@@ -3,11 +3,12 @@ ARAM Squad Stats - LCU Agent (Windows)
 롤 클라이언트에서 ARAM Mayhem(queueId 2400) 전적을 읽어 서버로 전송합니다.
 
 사용법:
-  python lcu_agent.py          # 정상 실행 (서버로 전송)
+  python lcu_agent.py          # 정상 실행 (최근 8경기 확인 후 전송)
+  python lcu_agent.py --full   # 최근 20경기까지 되짚어 누락분 복구
   python lcu_agent.py --debug  # 진단 모드 (API 응답 raw 출력, 서버 전송 안 함)
 
 필요:
-  pip install requests psutil
+  python -m pip install -r requirements.txt   (실행.bat / run.bat 이 자동으로 처리)
 """
 
 import sys
@@ -16,9 +17,17 @@ import re
 import json
 import base64
 import argparse
-import psutil
-import requests
 from pathlib import Path
+
+try:
+    import psutil
+    import requests
+except ImportError as exc:
+    print(f"[오류] 필요한 패키지가 없습니다: {exc.name}")
+    print("  다음 명령으로 설치하세요:")
+    print("    python -m pip install -r requirements.txt")
+    print("  또는 실행.bat / run.bat 으로 실행하면 자동으로 설치됩니다.")
+    sys.exit(1)
 
 # ─── 설정 ────────────────────────────────────────────────────────────────────
 
@@ -26,7 +35,12 @@ SERVER_URL      = "https://aram-squad-stats.vercel.app/api/lcu-sync"
 LAST_SYNC_URL   = "https://aram-squad-stats.vercel.app/api/last-sync"
 LCU_SECRET  = os.environ.get("LCU_SYNC_SECRET", "")  # 환경변수 or 직접 입력
 QUEUE_ID    = 2400   # ARAM Mayhem
-FETCH_COUNT = 20     # 최근 N경기 조회 (LCU 타임아웃 방지)
+
+# 한 판 끝날 때마다 돌리는 게 기본 사용 패턴이라 좁은 구간이면 충분하다.
+# 서버가 결과 없는 기존 경기를 복구할 수 있으므로 구간이 곧 복구 창(window)이 된다.
+# 더 넓게 되짚어야 할 때는 --full 로 실행한다.
+FETCH_COUNT      = 8
+FETCH_COUNT_FULL = 20
 
 # gameName → (LCU puuid, Riot puuid)
 TRACKED_PLAYERS = {
@@ -204,6 +218,15 @@ def normalize_game_detail(raw: dict) -> dict:
             if int(stats.get(f'item{i}', 0) or 0) > 0
         ]
 
+        # LCU(구 match-history 포맷)는 totalTimeCrowdControlDealt 를 쓴다.
+        # Riot Match-V5 의 totalTimeCCDealt 만 읽던 탓에 CC가 계속 0으로 저장됐다.
+        cc_dealt = 0
+        for key in ('totalTimeCrowdControlDealt', 'totalTimeCCDealt', 'timeCCingOthers'):
+            value = stats.get(key)
+            if value:
+                cc_dealt = int(value)
+                break
+
         participants.append({
             'puuid':                       riot_puuid,
             'gameName':                    game_name,
@@ -218,7 +241,7 @@ def normalize_game_detail(raw: dict) -> dict:
             'totalDamageTaken':            int(stats.get('totalDamageTaken', 0)),
             'totalHeal':                   int(stats.get('totalHeal', 0)),
             'goldEarned':                  int(stats.get('goldEarned', 0)),
-            'totalTimeCCDealt':            int(stats.get('totalTimeCCDealt', 0)),
+            'totalTimeCCDealt':            cc_dealt,
             'augments':                    augments,
             'itemIds':                     item_ids,
         })
@@ -311,7 +334,10 @@ def run_debug(session: requests.Session, puuid: str):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--debug', action='store_true', help='진단 모드 (서버 전송 안 함)')
+    parser.add_argument('--full', action='store_true',
+                        help=f'최근 {FETCH_COUNT_FULL}경기까지 되짚어 누락분 복구')
     args = parser.parse_args()
+    fetch_count = FETCH_COUNT_FULL if args.full else FETCH_COUNT
 
     try:
         import urllib3
@@ -388,8 +414,8 @@ def main():
         print(f"  확인 실패 ({e}) → 전체 조회")
 
     # 5. 매치 히스토리
-    print(f"[5] 매치 히스토리 조회 (최근 {FETCH_COUNT}경기)...")
-    raw_games = get_match_history(session, puuid, FETCH_COUNT)
+    print(f"[5] 매치 히스토리 조회 (최근 {fetch_count}경기)...")
+    raw_games = get_match_history(session, puuid, fetch_count)
     print(f"  전체 {len(raw_games)}경기")
 
     # 6. Mayhem 필터 → 최근 경기 재검사 → game detail → 4인 확인

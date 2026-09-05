@@ -40,3 +40,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env.local
+
+# secrets
+*.key
+secrets/
+
+# python (lcu-agent)
+__pycache__/
+*.pyc
