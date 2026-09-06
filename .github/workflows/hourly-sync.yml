@@ -5,12 +5,35 @@ on:
     - cron: '0 * * * *'   # every hour
   workflow_dispatch:        # manual trigger too
 
+# Vercel 쪽 크론은 커스텀 헤더를 보낼 수 없어 제거했다.
+# 스케줄 동기화는 이 워크플로 하나만 담당한다.
+
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger sync
+        env:
+          SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
         run: |
-          curl -s -X GET "${{ secrets.APP_URL }}/api/sync" \
-            -H "x-sync-secret: ${{ secrets.SYNC_SECRET }}" \
-            | jq .
+          set -euo pipefail
+
+          if [ -z "${SYNC_SECRET}" ]; then
+            echo "::error::SYNC_SECRET 이 설정되지 않았습니다. Actions 시크릿을 확인하세요."
+            exit 1
+          fi
+
+          # --fail-with-body: HTTP 오류면 본문을 보여주고 0이 아닌 코드로 종료.
+          # 예전에는 -s 만 써서 URL 이 비어 있어도 조용히 성공으로 넘어갔다.
+          response=$(curl -sS --fail-with-body --max-time 120 \
+            -H "x-sync-secret: ${SYNC_SECRET}" \
+            "https://aram-squad-stats.vercel.app/api/sync")
+
+          echo "$response" | jq .
+
+          synced=$(echo "$response" | jq -r '.synced // "null"')
+          if [ "$synced" = "null" ]; then
+            echo "::error::예상과 다른 응답입니다."
+            exit 1
+          fi
+          echo "::notice::동기화 완료 · synced=${synced}"

@@ -36,7 +36,7 @@
 | `GET /api/players/badges?limit=` | 없음 | 마일스톤 수상 목록 |
 | `GET /api/players/[puuid]/report` | 없음 | 플레이어 챔피언 리포트 |
 | `GET /api/last-sync` | 없음 | 마지막 저장 경기 시점 (에이전트가 사용) |
-| `GET /api/sync` | 없음 | Riot API에서 신규 경기 수집 |
+| `GET /api/sync` | `x-sync-secret` 헤더 | 스케줄러 전용 경기 수집 |
 | `POST /api/lcu-sync` | body `secret` | 로컬 에이전트 전송 수신 |
 | `POST /api/recalculate-scores` | `x-lcu-sync-secret` 헤더 | 저장된 점수 전체 재계산 |
 | `GET /api/debug` | `x-lcu-sync-secret` 헤더 | Riot API 연결 진단 |
@@ -110,8 +110,35 @@ curl -X POST https://aram-squad-stats.vercel.app/api/recalculate-scores \
 
 ## 전적 동기화
 
-전적은 `lcu-agent/실행.bat`을 통해 수집되어 `/api/lcu-sync`로 전송됩니다.
-설치 방법과 오류 대응은 [`lcu-agent/README.md`](lcu-agent/README.md)를 참고하세요.
+수집 경로는 두 개다.
+
+| 경로 | 트리거 | 출처 |
+| --- | --- | --- |
+| `POST /api/lcu-sync` | `lcu-agent/실행.bat` 수동 실행 | 롤 클라이언트(LCU) |
+| `GET /api/sync` | GitHub Actions 매시간 | Riot Match-V5 API |
+
+대시보드의 "게임 동기화" 버튼은 서버 액션(`src/app/actions.ts`)을 호출한다.
+예전에는 공개된 `GET /api/sync` 를 그대로 불러서, 그 URL 을 아는 누구나
+Riot API 쿼터를 소모시킬 수 있었다. 지금 그 경로는 `x-sync-secret` 을 요구한다.
+
+`SYNC_SECRET` 은 GitHub Actions 시크릿과 Vercel 환경변수 **양쪽에 같은 값**으로
+있어야 한다. 한쪽만 바꾸면 매시간 동기화가 401 로 죽는다.
+
+Vercel 쪽 크론(`vercel.json`)은 제거했다. 커스텀 헤더를 보낼 수 없어 잠근
+경로를 호출할 수 없고, GitHub Actions 가 더 자주(매시간) 같은 일을 한다.
+
+에이전트 설치와 오류 대응은 [`lcu-agent/README.md`](lcu-agent/README.md) 참고.
+
+## 배포
+
+**`git push` 만으로는 배포되지 않는다.** Vercel 프로젝트가 Git 연동되어 있으면
+푸시로 배포되고, 아니면 Mac 에서 아래를 실행해야 한다.
+
+```bash
+npx vercel --prod
+```
+
+배포 후 점수 모델 상수를 바꿨다면 재계산도 함께 실행한다.
 
 ---
 

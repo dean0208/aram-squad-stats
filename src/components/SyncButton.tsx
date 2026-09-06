@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 
+import { syncGamesAction } from '@/app/actions'
+
 export default function SyncButton() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ synced: number; skipped: number } | null>(null)
@@ -12,9 +14,7 @@ export default function SyncButton() {
     setError(null)
     setResult(null)
     try {
-      const res = await fetch('/api/sync')
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Sync failed')
+      const data = await syncGamesAction()
       setResult(data)
       window.setTimeout(() => window.location.reload(), 800)
     } catch (err) {
