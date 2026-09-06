@@ -1,0 +1,10 @@
+# 줄바꿈 정책 — Mac 과 Windows 양쪽에서 작업하므로 명시적으로 고정한다.
+# 저장소에는 LF 로 보관하고, 작업 트리로 꺼낼 때 확장자에 맞게 변환한다.
+
+* text=auto eol=lf
+
+# cmd.exe 는 LF 만 있는 배치 파일에서 괄호 블록을 오파싱한다.
+# 어느 OS 에서 체크아웃하든 CRLF 로 나와야 한다.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
