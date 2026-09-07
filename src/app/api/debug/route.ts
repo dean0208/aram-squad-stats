@@ -86,10 +86,18 @@ export async function GET(request: NextRequest) {
     }
   }
   if (matchId) {
-    results.detailRequested = {
-      matchId,
-      ...(await probe(`${RIOT_BASE}/lol/match/v5/matches/${matchId}`, headers)),
+    // 지역 클러스터가 갈리면 같은 경기라도 한쪽에서만 200 이 나온다.
+    // 어느 라우팅이 이 경기를 아는지 넷 다 때려 본다.
+    const routings = ['sea', 'americas', 'europe', 'asia']
+    const perRouting: Record<string, { status: number; ok: boolean }> = {}
+    for (const routing of routings) {
+      const r = await probe(
+        `https://${routing}.api.riotgames.com/lol/match/v5/matches/${matchId}`,
+        headers,
+      )
+      perRouting[routing] = { status: r.status, ok: r.status === 200 }
     }
+    results.detailRequested = { matchId, perRouting }
   }
 
   return Response.json(results)
