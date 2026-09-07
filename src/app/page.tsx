@@ -1,66 +1,25 @@
-import { createServerClient } from '@/lib/supabase'
-import { TRACKED_PLAYERS, DDRAGON_BASE } from '@/lib/config'
-import { fetchChampionNames } from '@/lib/championNames'
 import SyncButton from '@/components/SyncButton'
 import DashboardClient from '@/components/DashboardClient'
-import { fetchGames, getCachedNicknames } from '@/lib/games'
+import { fetchChampionCatalog, toChampionNameMap, toChampionRoleLabels } from '@/lib/championNames'
+import { fetchGames, fetchPlayers, getCachedNicknames } from '@/lib/games'
 
 export const dynamic = 'force-dynamic'
-
-// DDragon tag → Korean role
-const TAG_KO: Record<string, { label: string; emoji: string; damageType: 'AD' | 'AP' | 'Tank' | 'Utility' }> = {
-  Marksman: { label: '원딜',   emoji: '🏹', damageType: 'AD' },
-  Mage:     { label: '마법사', emoji: '🔮', damageType: 'AP' },
-  Tank:     { label: '탱커',   emoji: '🛡️', damageType: 'Tank' },
-  Fighter:  { label: '브루저', emoji: '⚡', damageType: 'AD' },
-  Support:  { label: '서포터', emoji: '💊', damageType: 'Utility' },
-  Assassin: { label: '암살자', emoji: '🗡️', damageType: 'AD' },
-}
 
 function formatSavedAt(iso?: string) {
   if (!iso) return '저장된 경기 없음'
   return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
 }
 
-async function getChampRoles(): Promise<Record<string, { label: string; emoji: string; damageType: 'AD' | 'AP' | 'Tank' | 'Utility' }>> {
-  try {
-    const res = await fetch(`${DDRAGON_BASE}/data/en_US/champion.json`, { next: { revalidate: 86400 } })
-    const data = await res.json()
-    const map: Record<string, { label: string; emoji: string; damageType: 'AD' | 'AP' | 'Tank' | 'Utility' }> = {}
-    for (const champ of Object.values(data.data) as { id: string; tags: string[] }[]) {
-      const primaryTag = ['Marksman', 'Mage', 'Assassin', 'Fighter', 'Tank', 'Support'].find(tag => champ.tags.includes(tag)) ?? champ.tags[0]
-      map[champ.id] = TAG_KO[primaryTag] ?? { label: '올라운더', emoji: '⚡', damageType: 'Utility' }
-    }
-    return map
-  } catch {
-    return {}
-  }
-}
-
-async function getPlayers() {
-  const supabase = createServerClient()
-  const { data: players } = await supabase
-    .from('players')
-    .select('id, puuid, game_name, tag_line')
-
-  if (!players?.length) return []
-
-  // Sort by configured player order
-  return [...players].sort((a, b) => {
-    const ai = TRACKED_PLAYERS.findIndex((p) => p.puuid === a.puuid)
-    const bi = TRACKED_PLAYERS.findIndex((p) => p.puuid === b.puuid)
-    return ai - bi
-  })
-}
-
 export default async function HomePage() {
-  const [allGames, players, champRoles, championNames, initialNicknames] = await Promise.all([
+  // 이름과 역할 라벨은 같은 카탈로그에서 나온다. 한 번만 받는다.
+  const [allGames, players, championCatalog, initialNicknames] = await Promise.all([
     fetchGames(),
-    getPlayers(),
-    getChampRoles(),
-    fetchChampionNames(),
+    fetchPlayers(),
+    fetchChampionCatalog(),
     getCachedNicknames(),
   ])
+  const championNames = toChampionNameMap(championCatalog)
+  const champRoles = toChampionRoleLabels(championCatalog)
 
   return (
     <div className="space-y-6 sm:space-y-8">
