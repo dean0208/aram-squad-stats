@@ -152,3 +152,94 @@ body {
 .toss-theme .champion-toggle:not([open]) ~ .champion-table-wrap .champion-extra-row {
   display: none;
 }
+
+/* ── 오늘의 MVP 축하 연출 ────────────────────────────────────────────────── */
+
+@keyframes mvpPop {
+  from { opacity: 0; transform: scale(0.85) translateY(12px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes mvpBackdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes mvpConfettiFall {
+  from { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+  to   { transform: translateY(105vh) rotate(540deg); opacity: 0; }
+}
+
+.mvp-celebration { animation: mvpBackdropIn 0.18s ease-out; }
+.mvp-celebration-card { animation: mvpPop 0.32s cubic-bezier(0.2, 1.2, 0.4, 1); }
+
+.mvp-confetti {
+  position: absolute;
+  top: 0;
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  animation-name: mvpConfettiFall;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+
+/* 연출 안의 글자는 라이트 테마 규칙(.toss-theme .text-white)에 먹히면 안 된다.
+   패널 배경이 어두워서, 검게 덮이면 이름이 보이지 않았다. */
+.celebration-panel .text-white,
+.celebration-panel .celebration-name { color: #ffffff !important; }
+
+/* ── 오늘의 걸배이 (반대 연출) ──────────────────────────────────────────── */
+
+@keyframes loserPop {
+  from { opacity: 0; transform: scale(1.04) translateY(-10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* 파리는 8자를 그리며 맴돈다. 좌우 폭과 주기는 인라인 변수로 개체마다 흩는다. */
+@keyframes flyBuzz {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  25%  { transform: translate(var(--fly-x), calc(var(--fly-y) * -1)) rotate(14deg); }
+  50%  { transform: translate(calc(var(--fly-x) * -0.6), var(--fly-y)) rotate(-10deg); }
+  75%  { transform: translate(calc(var(--fly-x) * 0.4), calc(var(--fly-y) * -0.5)) rotate(8deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+/* 사진이 축 처지는 느낌. */
+@keyframes loserSag {
+  0%, 100% { transform: rotate(-2deg) translateY(0); }
+  50%      { transform: rotate(-2deg) translateY(5px); }
+}
+
+.celebration-loser-card { animation: loserPop 0.32s ease-out; }
+.celebration-loser-photo { animation: loserSag 2.6s ease-in-out infinite; }
+
+.celebration-fly {
+  position: absolute;
+  font-size: 18px;
+  line-height: 1;
+  animation-name: flyBuzz;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+/* 위쪽 절반에서 쏟아진 꽃가루가 아래 칸까지 내려오지 않도록,
+   분할 화면에서는 각 패널이 자기 영역만 그린다. */
+.celebration-panel { position: relative; overflow: hidden; }
+
+/* 움직임을 줄여 달라고 한 사용자에게는 "움직임"만 뺀다.
+   예전에는 꽃가루와 파리를 통째로 지웠는데, 그러면 축하도 놀림도 사라져
+   두 칸이 똑같이 밋밋해진다. 흩뿌린 자리에 멈춰 세워 뜻은 남긴다. */
+@media (prefers-reduced-motion: reduce) {
+  .mvp-celebration,
+  .mvp-celebration-card,
+  .celebration-loser-card,
+  .celebration-loser-photo,
+  .celebration-fly { animation: none; }
+  /* 떨어지는 조각은 전부 top:0 에 겹치므로, 개체마다 받은 높이로 흩는다. */
+  .mvp-confetti {
+    animation: none;
+    top: var(--confetti-top, 50%);
+  }
+}

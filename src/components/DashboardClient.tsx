@@ -1,21 +1,24 @@
 'use client'
 
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Game, GameResult } from '@/lib/types'
 import type { NicknameAward } from '@/lib/nicknames'
 import { calculateMedals } from '@/lib/medals'
-import { getPlayerDisplayName, TRACKED_PLAYERS, DDRAGON_VERSION } from '@/lib/config'
-import { getChampionDisplayName, type ChampionNameMap } from '@/lib/championNames'
+import { getPlayerDisplayName, getPlayerPhoto, TRACKED_PLAYERS, DDRAGON_VERSION } from '@/lib/config'
+import { getChampionDisplayName, type ChampionNameMap, type ChampionRoleLabelMap } from '@/lib/championNames'
 import { rankContributionChampions } from '@/lib/championStats'
 import { getGrowthStatus } from '@/lib/growth'
 import { selectMvp } from '@/lib/mvp'
-import { toDisplayContributionScore } from '@/lib/displayScore'
+import { resolveCelebrationPlan } from '@/lib/mvpCelebration'
+import { computeDailyTrend } from '@/lib/dailyTrend'
+import MvpCelebration, { preloadImages, type AwardSubject } from './MvpCelebration'
+import { toDisplayScore } from '@/lib/displayScore'
 import { assignPlayerTitles, type PlayerTitle } from '@/lib/playerTitles'
 import { getAugmentHighlight, getAugmentName } from '@/lib/augmentHighlight'
 import { getGameCommentary } from '@/lib/gameCommentary'
-import { analyzeTeamComposition, getBestChampionComposition, getBestRoleByPlayer, getWorstRoleByPlayer, type DamageType } from '@/lib/teamInsights'
+import { analyzeTeamComposition, getBestChampionComposition, getBestRoleByPlayer, getWorstRoleByPlayer } from '@/lib/teamInsights'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -46,7 +49,7 @@ function ChampionIcon({ name, size = 32 }: { name: string; size?: number }) {
 
 // ─── Player stat computation ──────────────────────────────────────────────────
 
-type ChampRoleMap = Record<string, { label: string; emoji: string; damageType?: DamageType }>
+type ChampRoleMap = ChampionRoleLabelMap
 
 function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRoleMap) {
   const entries = allGames.flatMap(g =>
@@ -63,7 +66,7 @@ function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRo
     champData.set(r.champion_name, {
       count: prev.count + 1,
       wins: prev.wins + (win ? 1 : 0),
-      totalContrib: prev.totalContrib + r.contribution_score,
+      totalContrib: prev.totalContrib + r.perf_score,
     })
   }
   const [mostChamp, mostInfo] = [...champData.entries()].sort((a, b) => b[1].count - a[1].count)[0]
@@ -80,7 +83,7 @@ function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRo
   )
 
   // 전체 평균 대비 최근 10판 성장세
-  const avgContrib = entries.reduce((a, { r }) => a + r.contribution_score, 0) / total
+  const avgContrib = entries.reduce((a, { r }) => a + r.perf_score, 0) / total
   const avgDeath = entries.reduce((a, { r }) => a + r.deaths, 0) / total
   const avgDamage = entries.reduce((a, { r }) => a + r.damage_dealt, 0) / total
   const avgTaken = entries.reduce((a, { r }) => a + r.damage_taken, 0) / total
@@ -88,7 +91,7 @@ function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRo
   const avgCc = entries.reduce((a, { r }) => a + r.cc_score, 0) / total
   const avgAssist = entries.reduce((a, { r }) => a + r.assists, 0) / total
   const recent10 = entries.slice(0, Math.min(10, total))
-  const recent10AvgContrib = recent10.reduce((a, { r }) => a + r.contribution_score, 0) / recent10.length
+  const recent10AvgContrib = recent10.reduce((a, { r }) => a + r.perf_score, 0) / recent10.length
   const growthStatus = getGrowthStatus(avgContrib, recent10AvgContrib)
 
   return {
@@ -151,7 +154,7 @@ function PlayerProfileCard({ player, stats, title }: {
               <div className="text-sm leading-tight text-gray-500">기여도 👍</div>
             </div>
             <div className="whitespace-nowrap text-right text-sm text-gray-400">
-              평균 <span className="font-semibold text-purple-300">{toDisplayContributionScore(stats.bestChamp.avgContribution)}점</span>
+              평균 <span className="font-semibold text-purple-300">{toDisplayScore(stats.bestChamp.avgContribution)}점</span>
             </div>
           </div>
         )}
@@ -163,7 +166,7 @@ function PlayerProfileCard({ player, stats, title }: {
               <div className="text-sm leading-tight text-gray-500">기여도 👎</div>
             </div>
             <div className="whitespace-nowrap text-right text-sm text-gray-400">
-              평균 <span className="font-semibold text-red-300">{toDisplayContributionScore(stats.worstChamp.avgContribution)}점</span>
+              평균 <span className="font-semibold text-red-300">{toDisplayScore(stats.worstChamp.avgContribution)}점</span>
             </div>
           </div>
         )}
@@ -185,7 +188,7 @@ function PlayerProfileCard({ player, stats, title }: {
       {/* Average contribution: keep the only numeric summary compact */}
       <div className="min-w-0 rounded-lg bg-gray-900/50 px-2 py-1 mt-auto">
         <div className="text-sm leading-tight text-gray-500">평균 기여도</div>
-        <div className="text-base font-semibold text-blue-400">{toDisplayContributionScore(stats.avgContrib)}점</div>
+        <div className="text-base font-semibold text-blue-400">{toDisplayScore(stats.avgContrib)}점</div>
       </div>
       <div className="flex items-center justify-between text-sm font-medium text-blue-500">
         <span>상세 프로필</span>
@@ -197,11 +200,7 @@ function PlayerProfileCard({ player, stats, title }: {
 
 // ─── MVP Card ─────────────────────────────────────────────────────────────────
 
-function MvpCard({ games, championNames }: { games: Game[]; championNames: ChampionNameMap }) {
-  if (!games.length) return null
-  const mvpResult = selectMvp(
-    games.flatMap(game => game.game_results).filter(result => result.players),
-  )
+function MvpCard({ mvpResult, championNames }: { mvpResult: GameResult | null; championNames: ChampionNameMap }) {
   if (!mvpResult) return null
 
   return (
@@ -216,7 +215,7 @@ function MvpCard({ games, championNames }: { games: Game[]; championNames: Champ
         </div>
       </div>
       <div className="shrink-0 text-center">
-        <div className="text-3xl font-black text-amber-300">{toDisplayContributionScore(mvpResult.perf_score)}</div>
+        <div className="text-3xl font-black text-amber-300">{toDisplayScore(mvpResult.perf_score)}</div>
         <div className="text-sm text-amber-500">기여도 지수 / 100</div>
       </div>
     </div>
@@ -261,7 +260,7 @@ function GameRow({ game, champRoles }: { game: Game; champRoles: ChampRoleMap })
 
   const sorted = [...game.game_results]
     .filter((r: GameResult) => r.players)
-    .sort((a: GameResult, b: GameResult) => b.contribution_score - a.contribution_score)
+    .sort((a: GameResult, b: GameResult) => b.perf_score - a.perf_score)
   const mvp = sorted[0]
   const wins = game.our_team_win
   const commentary = getGameCommentary({
@@ -271,7 +270,7 @@ function GameRow({ game, champRoles }: { game: Game; champRoles: ChampRoleMap })
       .filter(result => result.players)
       .map(result => ({
         name: getPlayerDisplayName(result.players!.puuid, result.players!.game_name),
-        contribution_score: result.contribution_score,
+        perf_score: result.perf_score,
         damage_dealt: result.damage_dealt,
         damage_taken: result.damage_taken,
         healing: result.healing,
@@ -335,7 +334,7 @@ function GameRow({ game, champRoles }: { game: Game; champRoles: ChampRoleMap })
                     <div className="text-xs text-gray-300 font-medium truncate">{result.players ? getPlayerDisplayName(result.players.puuid, result.players.game_name) : '—'}</div>
                     <div className="text-xs text-gray-500">{result.kills}/{result.deaths}/{result.assists}</div>
                     <div className="flex items-center gap-1 mt-0.5">
-                      <span className="text-xs font-bold text-purple-400">{toDisplayContributionScore(result.contribution_score)}</span>
+                      <span className="text-xs font-bold text-purple-400">{toDisplayScore(result.perf_score)}</span>
                       {myMedals.slice(0, 3).map(({ medal }) => (
                         <span key={medal.id} className="text-xs">{medal.emoji}</span>
                       ))}
@@ -460,30 +459,16 @@ function DailyPerformance({ allGames, filteredGames, players }: {
 }) {
   if (!filteredGames.length) return null
 
-  const stats = players.map(p => {
-    // 전체 평균 기여도
-    const allResults = allGames.flatMap(g =>
-      g.game_results.filter(r => r.players?.puuid === p.puuid)
-    )
-    if (!allResults.length) return null
-    const baseline = allResults.reduce((a, r) => a + r.contribution_score, 0) / allResults.length
+  // 판정은 갱신 연출과 같은 함수를 쓴다 — 카드와 모달이 다른 사람을 가리키면 안 된다.
+  const trend = computeDailyTrend(toTrendScores(allGames), toTrendScores(filteredGames))
+  if (!trend) return null
 
-    // 오늘 평균 기여도
-    const todayResults = filteredGames.flatMap(g =>
-      g.game_results.filter(r => r.players?.puuid === p.puuid)
-    )
-    if (!todayResults.length) return null
-    const todayAvg = todayResults.reduce((a, r) => a + r.contribution_score, 0) / todayResults.length
-
-    const diff = todayAvg - baseline
-    return { name: getPlayerDisplayName(p.puuid, p.game_name), diff }
-  }).filter(Boolean) as { name: string; diff: number }[]
-
-  if (!stats.length) return null
-
-  const sorted = [...stats].sort((a, b) => b.diff - a.diff)
-  const topCarry = sorted[0]
-  const topAnchor = sorted[sorted.length - 1]
+  const nameOf = (puuid: string) => {
+    const player = players.find(p => p.puuid === puuid)
+    return player ? getPlayerDisplayName(player.puuid, player.game_name) : '—'
+  }
+  const topCarry = { name: nameOf(trend.carry.puuid), diff: trend.carry.diff }
+  const topAnchor = { name: nameOf(trend.anchor.puuid), diff: trend.anchor.diff }
 
   return (
     <div className="bg-gray-800/60 rounded-2xl border border-gray-700 overflow-hidden">
@@ -659,6 +644,36 @@ function BadgeLeaderboard({ games, players }: { games: Game[]; players: PlayerSu
   )
 }
 
+/** 경기 목록을 computeDailyTrend 가 받는 (puuid, 점수) 목록으로 편다. */
+function toTrendScores(games: Game[]) {
+  return games.flatMap(game =>
+    game.game_results
+      .filter(result => result.players)
+      .map(result => ({ puuid: result.players!.puuid, perfScore: result.perf_score })),
+  )
+}
+
+/** 이 브라우저가 마지막으로 연출한 대상. 같은 사람에게 두 번 띄우지 않는다. */
+const CELEBRATION_STORAGE_KEY = 'aram:last-mvp-celebration'
+const ANCHOR_STORAGE_KEY = 'aram:last-anchor-celebration'
+
+/** 저장이 막힌 환경(시크릿 창 등)에서도 연출은 그대로 띄운다. */
+function readStored(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function writeStored(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value)
+  } catch {
+    // 저장하지 못해도 이번 연출은 보여준다.
+  }
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -708,6 +723,83 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
     return map
   }, [orderedPlayers, allGames, champRoles])
 
+  // MVP 는 카드와 축하 연출이 함께 쓰므로 한 곳에서만 고른다.
+  const mvpResult = useMemo(
+    () => selectMvp(filteredGames.flatMap(game => game.game_results).filter(result => result.players)),
+    [filteredGames],
+  )
+
+  // 걸배이도 카드(DailyPerformance)와 연출이 같은 사람을 가리켜야 한다.
+  const dailyTrend = useMemo(
+    () => computeDailyTrend(
+      toTrendScores(allGames),
+      toTrendScores(filteredGames),
+    ),
+    [allGames, filteredGames],
+  )
+
+  // 갱신된 상만 담는다. 둘 다 null 이면 연출을 띄우지 않는다.
+  const [celebration, setCelebration] = useState<{ mvp: AwardSubject | null; anchor: AwardSubject | null } | null>(null)
+
+  // MVP·걸배이가 바뀐 순간에만 띄운다. 이미 보여 준 대상은 localStorage 로 기억한다.
+  //
+  // 판정을 다음 프레임으로 미루는 이유는 두 가지다. localStorage 는 서버
+  // 렌더에 없으므로 첫 렌더에서 읽으면 하이드레이션 결과가 어긋나고,
+  // 이펙트 본문에서 곧바로 상태를 바꾸면 연쇄 렌더가 된다.
+  useEffect(() => {
+    let cancelled = false
+    const frame = window.requestAnimationFrame(() => {
+      const anchorPuuid = dailyTrend?.anchor.puuid ?? null
+
+      const plan = resolveCelebrationPlan({
+        date: selectedDate,
+        isLatestDate: selectedDate === latestDate,
+        mvpResultId: mvpResult?.id ?? null,
+        anchorPuuid,
+        lastMvpKey: readStored(CELEBRATION_STORAGE_KEY),
+        lastAnchorKey: readStored(ANCHOR_STORAGE_KEY),
+      })
+      if (!plan) return
+
+      const mvp: AwardSubject | null = plan.mvpKey && mvpResult?.players
+        ? {
+            playerName: getPlayerDisplayName(mvpResult.players.puuid, mvpResult.players.game_name),
+            photoUrl: getPlayerPhoto(mvpResult.players.puuid),
+            headline: String(toDisplayScore(mvpResult.perf_score)),
+            caption: '기여도 지수 / 100',
+            detail: `${getChampionDisplayName(mvpResult.champion_name, championNames)} · ${mvpResult.kills}/${mvpResult.deaths}/${mvpResult.assists}`,
+          }
+        : null
+
+      const anchorPlayer = anchorPuuid ? players.find(p => p.puuid === anchorPuuid) : undefined
+      const anchor: AwardSubject | null = plan.anchorKey && dailyTrend && anchorPlayer
+        ? {
+            playerName: getPlayerDisplayName(anchorPlayer.puuid, anchorPlayer.game_name),
+            photoUrl: getPlayerPhoto(anchorPlayer.puuid),
+            // 차이를 큰 글씨로 세우면 -0.4 같은 값이 반올림돼 "0" 으로 뜬다.
+            // 오늘 점수를 세우고, 평소와의 격차는 아래 한 줄로 붙인다.
+            headline: String(toDisplayScore(dailyTrend.anchor.todayAvg)),
+            caption: `평소보다 ${dailyTrend.anchor.diff >= 0 ? '+' : '−'}${Math.abs(dailyTrend.anchor.diff).toFixed(1)}점`,
+            detail: dailyTrend.anchor.diff < 0 ? '마 정신 안채리나' : '오늘은 조금 아쉬워요',
+          }
+        : null
+
+      if (!mvp && !anchor) return
+
+      // 사진을 먼저 받아 둔다. 연출이 2초뿐이라 띄운 뒤에 받으면 빈 칸만 보다가 닫힌다.
+      preloadImages([mvp?.photoUrl ?? null, anchor?.photoUrl ?? null]).then(() => {
+        if (cancelled) return
+        setCelebration({ mvp, anchor })
+        if (plan.mvpKey) writeStored(CELEBRATION_STORAGE_KEY, plan.mvpKey)
+        if (plan.anchorKey) writeStored(ANCHOR_STORAGE_KEY, plan.anchorKey)
+      })
+    })
+    return () => {
+      cancelled = true
+      window.cancelAnimationFrame(frame)
+    }
+  }, [selectedDate, latestDate, mvpResult, dailyTrend, players, championNames])
+
   const playerTitles = useMemo(
     () => assignPlayerTitles([...statsByPuuid.entries()].map(([puuid, stats]) => ({
       puuid,
@@ -724,9 +816,25 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
   return (
     <div className="space-y-6">
 
-      <SquadSummaryCard games={allGames} />
+      {celebration && (
+        <MvpCelebration
+          onClose={() => setCelebration(null)}
+          mvp={celebration.mvp}
+          anchor={celebration.anchor}
+        />
+      )}
 
-      {/* ── 플레이어 프로필 (고정) ── */}
+      {/* ── 날짜 탐색 ── */}
+      <DateNavigator selectedDate={selectedDate} availableDates={availableDates} onChange={handleDateChange} />
+
+      {/* ── 오늘의 MVP (최상단) ── */}
+      <div key={`mvp-${animKey}`} style={{ animation: 'fadeSlideIn 0.25s ease-out' }}>
+        <MvpCard mvpResult={mvpResult} championNames={championNames} />
+      </div>
+
+      {/* ── 플레이어 프로필 (고정) ──
+          날짜와 무관한 전체 이력을 쓰므로 애니메이션 래퍼 밖에 둔다.
+          안에 두면 날짜를 바꿀 때마다 리마운트되어 전부 다시 집계한다. */}
       <section id="players">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           {orderedPlayers.map(p => (
@@ -747,12 +855,8 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
         </div>
       </section>
 
-      {/* ── 날짜 탐색 ── */}
-      <DateNavigator selectedDate={selectedDate} availableDates={availableDates} onChange={handleDateChange} />
-
       {/* ── 날짜별 콘텐츠 ── */}
       <div key={animKey} className="space-y-4" style={{ animation: 'fadeSlideIn 0.25s ease-out' }}>
-        {filteredGames.length > 0 && <MvpCard games={filteredGames} championNames={championNames} />}
         {filteredGames.length > 0 && <DailyAugmentCard games={filteredGames} />}
         {filteredGames.length > 0 && (
           <DailyPerformance allGames={allGames} filteredGames={filteredGames} players={orderedPlayers} />
@@ -769,9 +873,10 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
         </section>
       </div>
 
-      {/* 아래 두 카드는 선택 날짜와 무관하게 전체 이력을 쓴다.
+      {/* 아래 카드들은 선택 날짜와 무관하게 전체 이력을 쓴다.
           애니메이션 래퍼 안에 두면 날짜를 바꿀 때마다 리마운트되어
           전체 경기를 다시 집계하므로 밖에 둔다. */}
+      <SquadSummaryCard games={allGames} />
       <BestCompositionCard games={allGames} championNames={championNames} />
       <BestRoleCard games={allGames} players={orderedPlayers} champRoles={champRoles} />
 
