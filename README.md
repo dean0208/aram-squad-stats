@@ -12,7 +12,7 @@
 | `tests` | `node --test` 기반 순수 로직 테스트 |
 | `supabase/migrations` | DB 스키마 정본. 파일명 날짜 순서대로 적용하면 현재 상태가 된다 |
 | `docs` | 현황 감사 문서, 통계 용어 사전 |
-| `public/players` | MVP 축하 연출에 합성할 플레이어 사진 (`src/lib/config.ts` 의 `PLAYER_PHOTOS` 참고) |
+| `public/players` | 하루의 상 연출에 띄우는 플레이어 사진. MVP 용은 바로 아래, 걸배이 용은 `anchor/` 하위에 (`src/lib/config.ts` 의 `MVP_PHOTOS` · `ANCHOR_PHOTOS` 참고) |
 | `lcu-agent` | 롤 클라이언트에서 전적을 수집해 서버로 보내는 Windows 로컬 에이전트 — [설치·실행 가이드](lcu-agent/README.md) |
 
 ## 데이터 조회 레이어
@@ -145,9 +145,13 @@ node scripts/recalc-scores.mjs --apply    # 실제 반영
   넘겨볼 때는 아예 뜨지 않는다.
 - 걸배이 판정은 `src/lib/dailyTrend.ts` 가 맡는다. 화면 하단 카드와 연출이 같은
   사람을 가리켜야 해서 한 곳에 뒀다.
-- 사진은 `public/players/` 에 넣고 `PLAYER_PHOTOS`(`src/lib/config.ts`)에 경로를
-  적는다. 얼굴이 가운데 오는 정사각형 이미지가 원형 마스크에 잘 맞는다.
-  **파일이 없으면 이름 첫 글자를 대신 세운다.**
+- **사진은 상마다 따로 등록한다.** MVP 용은 `public/players/` 에 넣고
+  `MVP_PHOTOS`(`src/lib/config.ts`)에, 걸배이 용은 `public/players/anchor/` 에
+  넣고 `ANCHOR_PHOTOS` 에 적는다. 얼굴이 가운데 오는 정사각형 이미지가 원형
+  마스크에 잘 맞는다.
+  - `ANCHOR_PHOTOS` 에 없는 사람은 **MVP 사진으로 돌아간다.** 표를 비워 두거나
+    일부만 채워도 화면이 깨지지 않으므로, 사진을 받는 대로 한 줄씩 더하면 된다.
+  - 양쪽 다 없으면 **이름 첫 글자를 대신 세운다.**
 - 모달은 `createPortal` 로 `body` 에 직접 붙인다. 대시보드 안에 두면 조상의
   stacking context 에 갇혀, `z-50` 인데도 `z-40` 짜리 하단탭이 위로 올라왔다.
 - **동작 줄이기(`prefers-reduced-motion`)를 켠 화면에서는 움직임만 뺀다.**

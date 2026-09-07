@@ -36,22 +36,45 @@ export function getPlayerDisplayName(puuid: string, fallback: string): string {
   return PLAYER_DISPLAY_NAMES[puuid] ?? fallback
 }
 
+/** 하루의 상 두 종류. 상마다 다른 사진을 쓴다. */
+export type AwardKind = 'mvp' | 'anchor'
+
 /**
- * 하루의 상(MVP·걸배이) 연출에서 크게 띄우는 플레이어 사진.
+ * 오늘의 MVP 연출에 쓰는 사진.
  *
  * 파일은 `public/players/` 에 넣는다. 정사각형에 가깝고 얼굴이 가운데 오도록
  * 잘라 두면 원형 마스크에 잘 맞는다. 파일이 없으면 이름 첫 글자를 대신
  * 세우므로, 넣지 않아도 화면은 깨지지 않는다.
  */
-export const PLAYER_PHOTOS: Record<string, string> = {
+export const MVP_PHOTOS: Record<string, string> = {
   [TRACKED_PLAYERS[0].puuid]: '/players/jjeji.jpg',
   [TRACKED_PLAYERS[1].puuid]: '/players/heogaegul.png',
   [TRACKED_PLAYERS[2].puuid]: '/players/heomalja.png',
   [TRACKED_PLAYERS[3].puuid]: '/players/gwonseonbi.png',
 }
 
-export function getPlayerPhoto(puuid: string): string | null {
-  return PLAYER_PHOTOS[puuid] ?? null
+/**
+ * 오늘의 걸배이 연출에 쓰는 사진. 여기 없는 사람은 MVP 사진으로 돌아간다.
+ *
+ * 표를 비워 두거나 일부만 채워도 화면이 깨지지 않는다 — 넣은 사람만 전용
+ * 사진이 뜨고 나머지는 예전처럼 한 장을 같이 쓴다. 한 명 걸 받을 때마다
+ * 이 표에 한 줄씩 더하면 된다.
+ *
+ * 파일은 MVP 사진과 섞이지 않게 `public/players/anchor/` 에 넣는다.
+ */
+export const ANCHOR_PHOTOS: Record<string, string> = {
+  // [TRACKED_PLAYERS[0].puuid]: '/players/anchor/jjeji.jpg',
+}
+
+/**
+ * 상 종류에 맞는 사진. 없으면 null 이고, 그때는 이름 첫 글자를 세운다.
+ *
+ * `kind` 를 안 주면 MVP 사진이다. 걸배이 사진을 아직 안 넣었을 때 빈 칸이
+ * 뜨는 것보다 같은 사진이라도 뜨는 편이 나아서, anchor 는 MVP 로 폴백한다.
+ */
+export function getPlayerPhoto(puuid: string, kind: AwardKind = 'mvp'): string | null {
+  if (kind === 'anchor') return ANCHOR_PHOTOS[puuid] ?? MVP_PHOTOS[puuid] ?? null
+  return MVP_PHOTOS[puuid] ?? null
 }
 
 /**

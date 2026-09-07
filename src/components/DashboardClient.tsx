@@ -764,7 +764,7 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
       const mvp: AwardSubject | null = plan.mvpKey && mvpResult?.players
         ? {
             playerName: getPlayerDisplayName(mvpResult.players.puuid, mvpResult.players.game_name),
-            photoUrl: getPlayerPhoto(mvpResult.players.puuid),
+            photoUrl: getPlayerPhoto(mvpResult.players.puuid, 'mvp'),
             headline: String(toDisplayScore(mvpResult.perf_score)),
             caption: '기여도 지수 / 100',
             detail: `${getChampionDisplayName(mvpResult.champion_name, championNames)} · ${mvpResult.kills}/${mvpResult.deaths}/${mvpResult.assists}`,
@@ -775,7 +775,7 @@ export default function DashboardClient({ allGames, players, initialNicknames, c
       const anchor: AwardSubject | null = plan.anchorKey && dailyTrend && anchorPlayer
         ? {
             playerName: getPlayerDisplayName(anchorPlayer.puuid, anchorPlayer.game_name),
-            photoUrl: getPlayerPhoto(anchorPlayer.puuid),
+            photoUrl: getPlayerPhoto(anchorPlayer.puuid, 'anchor'),
             // 차이를 큰 글씨로 세우면 -0.4 같은 값이 반올림돼 "0" 으로 뜬다.
             // 오늘 점수를 세우고, 평소와의 격차는 아래 한 줄로 붙인다.
             headline: String(toDisplayScore(dailyTrend.anchor.todayAvg)),
