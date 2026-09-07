@@ -23,6 +23,37 @@ export const FALLBACK_ROLES: ChampionRoleMap = {
   Gwen: 'fighter', Volibear: 'fighter', Renekton: 'fighter', Garen: 'fighter',
 }
 
+/** DDragon 태그 → 역할. */
+const TAG_ROLE: Record<string, Role> = {
+  Marksman: 'carry',
+  Mage: 'mage',
+  Assassin: 'assassin',
+  Fighter: 'fighter',
+  Tank: 'tank',
+  Support: 'support',
+}
+
+/**
+ * DDragon 태그에서 대표 역할을 고른다.
+ *
+ * 첫 태그가 그 챔피언의 주 역할이다. 예전에는 고정 우선순위표
+ * (Marksman → Mage → … → Support) 로 골랐는데, Support 가 맨 뒤라
+ * 야나·소라카·밀리오·나미·질리언이 전부 mage 로 분류됐다. 최근 30경기에서
+ * 서포터로 잡힌 픽이 0건이었고, 등장 챔피언 67종 중 21종이 잘못된 역할을
+ * 받고 있었다 (초가스·갈리오 → mage, 사이온·문도 → fighter).
+ *
+ * 예외는 하나다. Support 와 Tank 를 함께 단 챔피언(탐 켄치·브라움·알리스타)은
+ * 칼바람에서 앞라인으로 서므로 탱커로 본다.
+ *
+ * 태그를 읽어 오는 쪽(championRoles.ts)이 아니라 여기에 두는 이유는, 그쪽이
+ * DDragon fetch 를 물고 있어 테스트에서 직접 import 할 수 없기 때문이다.
+ */
+export function roleFromTags(tags: string[] | undefined): Role {
+  const primary = TAG_ROLE[tags?.[0] ?? ''] ?? DEFAULT_ROLE
+  if (primary === 'support' && tags?.includes('Tank')) return 'tank'
+  return primary
+}
+
 export function resolveRole(championName: string | undefined, roles: ChampionRoleMap): Role {
   if (!championName) return DEFAULT_ROLE
   return roles[championName] ?? FALLBACK_ROLES[championName] ?? DEFAULT_ROLE
@@ -37,8 +68,27 @@ export interface ScoreParticipant {
   assists: number
   totalDamageDealtToChampions: number
   totalDamageTaken: number
+  /** Riot 의 totalHeal. 물약·흡혈 같은 자힐이 섞여 있다. */
   totalHeal: number
+  /**
+   * 팀원에게 준 힐만. 수집 이전 경기는 undefined 라 totalHeal 로 폴백한다.
+   *
+   * 자힐이 섞인 totalHeal 을 쓰면 탱커·전사가 자기를 회복한 양까지 팀 힐
+   * 합계에 들어가, 실제로 팀을 살린 서포터의 지분이 희석된다.
+   */
+  totalHealsOnTeammates?: number
   totalTimeCCDealt: number
+}
+
+/**
+ * 힐 축에 쓸 값. 팀원 힐을 알면 그것만 쓰고, 모르면 예전처럼 totalHeal.
+ *
+ * 한 경기의 4인은 같은 동기화에서 들어오므로 분자와 분모가 항상 같은 기준을
+ * 쓴다. 옛 경기와 새 경기가 서로 다른 기준인 것은 감수한다 — 과거는 원본이
+ * 없어 백필할 수 없다.
+ */
+export function healingForScore(p: ScoreParticipant): number {
+  return p.totalHealsOnTeammates ?? p.totalHeal
 }
 
 export interface ScoreOptions {
@@ -61,21 +111,22 @@ const ROLE_WEIGHTS: Record<Role, [number, number, number, number, number]> = {
 /**
  * 역할별 통상 지분 수준. 계산된 지분을 이 값으로 나눠 1.0(=팀 평균)에 맞춘다.
  *
- * 가중치만으로는 역할 간 균형이 맞지 않았다. 누적 211경기 실측에서 탱커의
- * 평균 지분이 1.25 였고(피해흡수 92k vs 원딜 37k), 결과적으로 탱커가 전체
- * 평균보다 8점 높고 마법사·암살자가 3~4점 낮았다. 챔피언 선택이 아니라
- * 플레이가 점수에 남도록 역할별로 눈금을 맞춘다.
+ * 가중치만으로는 역할 간 균형이 맞지 않는다. 챔피언 선택이 아니라 플레이가
+ * 점수에 남도록 역할별로 눈금을 맞춘다.
  *
- * 표본이 적은 역할(서포터·암살자)은 보정하지 않는다.
+ * 누적 221경기에 반복 대입해 여섯 역할의 평균이 전체 평균과 ±0.1점 안에서
+ * 만나도록 맞춘 값이다 (역할별 표본 31~270건). 이전 값은 서포터가 mage 로
+ * 잘못 분류되던 시절에 뽑은 것이라 눈금 자체가 틀어져 있었다.
+ *
  * 픽 성향이 크게 바뀌면 다시 계산해야 한다 — README 의 재계산 절차 참고.
  */
 const ROLE_CALIBRATION: Record<Role, number> = {
-  carry: 1.07,
-  mage: 0.96,
-  assassin: 1,
-  fighter: 1.07,
-  tank: 1.23,
-  support: 1,
+  carry: 1.02,
+  mage: 0.91,
+  assassin: 0.96,
+  fighter: 0.94,
+  tank: 1.12,
+  support: 1.06,
 }
 
 // ── 모델 상수 ────────────────────────────────────────────────────────────────
@@ -92,6 +143,17 @@ const ABSOLUTE_CAP = 2.0
 const RELATIVE_WEIGHT = 0.8
 /** 배합 결과 1.0(=평균 수준)을 몇 점으로 볼지. */
 const BASE_POINTS = 57
+/**
+ * 한 축에서 인정하는 지분 상한 (제 몫의 몇 배까지).
+ *
+ * 지분은 팀 합계로 나눈 값이라 한 사람이 독점할 수 있는 축에서는 위로 열려
+ * 있다. 특히 힐은 소라카 한 명이 팀 힐의 70%를 가져가는 일이 흔해서, 서포터
+ * 가중치(힐 31)와 곱해지면 다른 축을 전부 덮어썼다 — 보정 전 실측에서 소라카
+ * 99.2점이 나왔다. 잘한 판을 눌러 버리지 않으면서 한 축의 독점이 점수를
+ * 지배하지는 못하도록 제 몫의 2배에서 끊는다.
+ */
+const AXIS_SHARE_CAP = 2.0
+
 /** 데스 지분이 제 몫보다 많을 때 깎는 최대 폭. */
 const DEATH_PENALTY = 18
 /** 승리 가산점. */
@@ -134,7 +196,7 @@ export function calculateFairScores(
       kda: acc.kda + p.kills + p.assists,
       damage: acc.damage + p.totalDamageDealtToChampions,
       taken: acc.taken + p.totalDamageTaken,
-      healing: acc.healing + p.totalHeal,
+      healing: acc.healing + healingForScore(p),
       cc: acc.cc + p.totalTimeCCDealt,
       deaths: acc.deaths + p.deaths,
     }),
@@ -153,12 +215,16 @@ export function calculateFairScores(
     const role = resolveRole(p.championName, roles)
     const [killWeight, damageWeight, takenWeight, healingWeight, ccWeight] = ROLE_WEIGHTS[role]
 
+    // 각 축을 "제 몫의 몇 배" 로 환산해 상한을 건 뒤 가중치를 곱한다.
+    const axis = (value: number, total: number): number =>
+      total > 0 ? Math.min(share(value, total) / fairShare, AXIS_SHARE_CAP) : 0
+
     const relativeIndex =
-      share(p.kills + p.assists, totals.kda) * killWeight +
-      share(p.totalDamageDealtToChampions, totals.damage) * damageWeight +
-      share(p.totalDamageTaken, totals.taken) * takenWeight +
-      share(p.totalHeal, totals.healing) * healingWeight +
-      share(p.totalTimeCCDealt, totals.cc) * ccWeight
+      axis(p.kills + p.assists, totals.kda) * killWeight +
+      axis(p.totalDamageDealtToChampions, totals.damage) * damageWeight +
+      axis(p.totalDamageTaken, totals.taken) * takenWeight +
+      axis(healingForScore(p), totals.healing) * healingWeight +
+      axis(p.totalTimeCCDealt, totals.cc) * ccWeight
 
     // 팀 합계가 0인 지표는 분모에서도 뺀다.
     // 어떤 지표가 수집되지 않는 구간이 생겨도 점수 눈금이 흔들리지 않게 하려는 것.
@@ -171,7 +237,7 @@ export function calculateFairScores(
       (totals.cc > 0 ? ccWeight : 0)
 
     // 1.0 = 팀 평균만큼 기여. 역할별 눈금 차이를 마지막에 보정한다.
-    const rawRelative = effectiveWeight > 0 ? relativeIndex / (effectiveWeight * fairShare) : 1
+    const rawRelative = effectiveWeight > 0 ? relativeIndex / effectiveWeight : 1
     const relative = rawRelative / ROLE_CALIBRATION[role]
 
     // 제 몫(fairShare)만큼 죽으면 0, 두 배로 죽으면 +1

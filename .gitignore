@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# 실제 값이 없는 템플릿은 커밋한다.
+!.env.example
 
 # vercel
 .vercel
@@ -48,3 +50,9 @@ secrets/
 # python (lcu-agent)
 __pycache__/
 *.pyc
+
+# 점수 재계산 시 남기는 이전 값 백업
+perf-score-backup.json
+
+# supabase CLI 작업 디렉터리
+supabase/.temp/
