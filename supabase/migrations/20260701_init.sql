@@ -1,4 +1,8 @@
--- ARAM Squad Stats Schema
+-- ARAM Squad Stats: 최초 스키마
+--
+-- 이 디렉터리가 스키마의 정본이다. 파일 이름의 날짜 순서대로 적용하면
+-- 현재 상태가 나온다. 예전에는 `supabase/schema.sql` 이 따로 있어 어느 쪽이
+-- 실제 DB 와 같은지 알 수 없었다.
 
 -- Players
 create table if not exists players (
