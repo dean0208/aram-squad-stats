@@ -4,7 +4,6 @@ interface PlayedChampionReport {
   champion_name: string
   games: number
   avg_perf_score: number
-  avg_contribution_score: number
 }
 
 export interface ChampionRecommendation {
@@ -53,7 +52,7 @@ export function recommendChampion(
   const played = new Map(reports.map(report => [report.champion_name, report]))
   const anchor = [...reports]
     .filter(report => report.games >= 3)
-    .sort((a, b) => b.avg_contribution_score - a.avg_contribution_score)[0]
+    .sort((a, b) => b.avg_perf_score - a.avg_perf_score)[0]
   if (!anchor) return null
 
   const anchorChampion = catalog.find(champion => champion.id === anchor.champion_name)
@@ -72,8 +71,8 @@ export function recommendChampion(
         ? ROLE_PREFERRED[role].indexOf(champion.id)
         : -1
       const styleMatch = preferredIndex >= 0 ? 60 - preferredIndex : 0
-      const observedContribution = report?.avg_contribution_score ?? anchor.avg_contribution_score
-      const similarity = Math.max(0, 30 - Math.abs(observedContribution - anchor.avg_contribution_score))
+      const observedScore = report?.avg_perf_score ?? anchor.avg_perf_score
+      const similarity = Math.max(0, 30 - Math.abs(observedScore - anchor.avg_perf_score))
       return {
         champion,
         games: report?.games ?? 0,

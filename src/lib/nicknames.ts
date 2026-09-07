@@ -1,6 +1,6 @@
 import type { Game, GameResult } from './types'
 import { getPlayerDisplayName } from './config'
-import { toDisplayContributionScore } from './displayScore'
+import { toDisplayScore } from './displayScore'
 import { computeAwardGap } from './awardGap'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -81,7 +81,7 @@ const NICKNAME_DEFS: NicknameDefinition[] = [
     description: '누적 기여도 평균 1위 · 종합 MVP',
     colorKey: 'amber',
     getValue: (s) => s.avgContribution,
-    formatValue: (s) => `평균 ${toDisplayContributionScore(s.avgContribution)}점`,
+    formatValue: (s) => `평균 ${toDisplayScore(s.avgContribution)}점`,
     direction: 'highest',
   },
   {
@@ -236,9 +236,9 @@ export function aggregatePlayerStats(games: Game[]): PlayerStats[] {
       totalHealing += result.healing
       totalGoldEarned += result.gold_earned
       totalCcScore += result.cc_score
-      totalContribution += result.contribution_score
+      totalContribution += result.perf_score
       if (!win) {
-        lossContribSum += result.contribution_score
+        lossContribSum += result.perf_score
         lossGames++
       }
     }

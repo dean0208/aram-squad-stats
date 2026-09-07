@@ -16,7 +16,6 @@ const result = (id, stats) => ({
   gold_earned: stats.gold ?? 0,
   cc_score: stats.cc ?? 0,
   perf_score: stats.perf ?? 0,
-  contribution_score: stats.perf ?? 0,
   augment_ids: [],
   players: { puuid: id, game_name: id },
 })

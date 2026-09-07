@@ -27,7 +27,7 @@ export const MEDALS: Medal[] = [
     emoji: '👑',
     name: 'MVP',
     description: '최고 기여도',
-    field: 'contribution_score',
+    field: 'perf_score',
     direction: 'highest',
     alwaysAward: true,
   },

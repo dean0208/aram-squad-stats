@@ -3,7 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createServerClient } from '@/lib/supabase'
 import { DDRAGON_VERSION, getPlayerDisplayName } from '@/lib/config'
-import { toDisplayContributionScore } from '@/lib/displayScore'
+import { toDisplayScore } from '@/lib/displayScore'
 import { fetchChampionCatalog, getChampionDisplayName } from '@/lib/championNames'
 import { recommendChampion } from '@/lib/championRecommendations'
 import type { ChampionReport } from '@/lib/types'
@@ -93,8 +93,7 @@ function ChampionBreakdownTable({ champions, championNames }: {
             <th className="w-[27%] px-2 py-3 text-left sm:w-auto sm:px-6">챔피언</th>
             <th className="w-[13%] px-1 py-3 text-center sm:w-auto sm:px-4">경기</th>
             <th className="w-[15%] px-1 py-3 text-center sm:w-auto sm:px-4">승률</th>
-            <th className="w-[17%] px-1 py-3 text-center sm:w-auto sm:px-4">평균 성능</th>
-            <th className="hidden px-4 py-3 text-center sm:table-cell">평균 기여도</th>
+            <th className="w-[17%] px-1 py-3 text-center sm:w-auto sm:px-4">평균 기여도</th>
             <th className="hidden px-4 py-3 text-center sm:table-cell">평균 KDA</th>
             <th className="w-[28%] px-1 py-3 text-center sm:w-auto sm:px-4">킬/데스/어시</th>
           </tr>
@@ -116,10 +115,7 @@ function ChampionBreakdownTable({ champions, championNames }: {
                 <div className="text-xs text-gray-500">{c.wins}승/{c.games - c.wins}패</div>
               </td>
               <td className="px-1 py-3 text-center sm:px-4 sm:py-4">
-                <span className="text-blue-400 font-semibold">{toDisplayContributionScore(c.avg_perf_score)}</span>
-              </td>
-              <td className="hidden px-4 py-4 text-center sm:table-cell">
-                <span className="text-purple-400 font-semibold">{toDisplayContributionScore(c.avg_contribution_score)}</span>
+                <span className="text-blue-400 font-semibold">{toDisplayScore(c.avg_perf_score)}</span>
               </td>
               <td className="hidden px-4 py-4 text-center sm:table-cell">
                 <span className="text-gray-300 font-semibold">{c.avg_kda}</span>
@@ -171,7 +167,6 @@ export default async function PlayerReportPage({
       deaths,
       assists,
       perf_score,
-      contribution_score,
       games (
         our_team_win
       )
@@ -200,7 +195,6 @@ export default async function PlayerReportPage({
       games: number
       wins: number
       total_perf: number
-      total_contribution: number
       total_kills: number
       total_deaths: number
       total_assists: number
@@ -221,7 +215,6 @@ export default async function PlayerReportPage({
         games: 1,
         wins: win ? 1 : 0,
         total_perf: r.perf_score ?? 0,
-        total_contribution: r.contribution_score ?? 0,
         total_kills: r.kills ?? 0,
         total_deaths: r.deaths ?? 0,
         total_assists: r.assists ?? 0,
@@ -231,7 +224,6 @@ export default async function PlayerReportPage({
       existing.games++
       if (win) existing.wins++
       existing.total_perf += r.perf_score ?? 0
-      existing.total_contribution += r.contribution_score ?? 0
       existing.total_kills += r.kills ?? 0
       existing.total_deaths += r.deaths ?? 0
       existing.total_assists += r.assists ?? 0
@@ -247,8 +239,6 @@ export default async function PlayerReportPage({
       wins: c.wins,
       win_rate: c.games > 0 ? Math.round((c.wins / c.games) * 100) : 0,
       avg_perf_score: c.games > 0 ? Math.round((c.total_perf / c.games) * 10) / 10 : 0,
-      avg_contribution_score:
-        c.games > 0 ? Math.round((c.total_contribution / c.games) * 10) / 10 : 0,
       avg_kills: c.games > 0 ? Math.round((c.total_kills / c.games) * 10) / 10 : 0,
       avg_deaths: c.games > 0 ? Math.round((c.total_deaths / c.games) * 10) / 10 : 0,
       avg_assists: c.games > 0 ? Math.round((c.total_assists / c.games) * 10) / 10 : 0,
@@ -302,7 +292,7 @@ export default async function PlayerReportPage({
       return result ? [result] : []
     })
   const formResults = allFormResults.slice(0, 10)
-  const formScores = formResults.map(result => toDisplayContributionScore(result.contribution_score))
+  const formScores = formResults.map(result => toDisplayScore(result.perf_score))
   const formTrendScores = formScores.slice().reverse()
 
   const totalGames = results?.length ?? 0
@@ -311,8 +301,8 @@ export default async function PlayerReportPage({
 
   const suspects = championReport.filter((c) => c.is_suspect)
   const regular = championReport.filter((c) => !c.is_suspect)
-  const strongChampions = regular.filter((c) => toDisplayContributionScore(c.avg_contribution_score) >= 50)
-  const weakChampions = regular.filter((c) => toDisplayContributionScore(c.avg_contribution_score) < 50)
+  const strongChampions = regular.filter((c) => toDisplayScore(c.avg_perf_score) >= 50)
+  const weakChampions = regular.filter((c) => toDisplayScore(c.avg_perf_score) < 50)
 
   return (
     <div className="space-y-6">
@@ -429,7 +419,7 @@ export default async function PlayerReportPage({
                   </div>
                   <div>
                     <div className="font-bold text-blue-400">{c.avg_perf_score}</div>
-                    <div className="text-xs text-gray-400">평균 성능</div>
+                    <div className="text-xs text-gray-400">평균 기여도</div>
                   </div>
                   <div>
                     <div className="font-bold text-gray-300">{c.avg_kda}</div>
