@@ -87,3 +87,56 @@ test('전달된 역할 맵이 내장 폴백보다 우선한다', () => {
 test('참가자가 없으면 빈 결과를 돌려준다', () => {
   assert.equal(calculateFairScores([], GAME).size, 0)
 })
+
+test('팀원 힐을 알면 자힐이 섞인 totalHeal 대신 그것을 쓴다', () => {
+  // 탱커는 자기를 크게 회복하고(자힐 60k) 팀원은 못 살렸다.
+  // 서포터는 자힐은 없지만 팀원을 20k 살렸다.
+  const base = {
+    win: true, kills: 2, deaths: 3, assists: 10,
+    totalDamageDealtToChampions: 20000, totalDamageTaken: 40000, totalTimeCCDealt: 0,
+  }
+  const participants = [
+    { ...base, puuid: 'tank', championName: 'Malphite', totalHeal: 60000, totalHealsOnTeammates: 0 },
+    { ...base, puuid: 'sup', championName: 'Soraka', totalHeal: 20000, totalHealsOnTeammates: 20000 },
+    { ...base, puuid: 'adc', championName: 'Jinx', totalHeal: 3000, totalHealsOnTeammates: 0 },
+    { ...base, puuid: 'mid', championName: 'Lux', totalHeal: 3000, totalHealsOnTeammates: 0 },
+  ]
+  const withTeammate = calculateFairScores(participants)
+
+  // 같은 경기를 팀원 힐 없이(옛 데이터처럼) 계산하면 탱커가 힐 지분을 독식한다.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- 구조분해로 키를 빼는 관용구다.
+  const legacy = calculateFairScores(participants.map(({ totalHealsOnTeammates, ...p }) => p))
+
+  // 팀원 힐을 쓰면 실제로 팀을 살린 서포터가 이득을 본다.
+  assert.ok(withTeammate.get('sup') > legacy.get('sup'))
+  // 자기만 회복한 탱커는 힐 축에서 더 이상 점수를 받지 못한다.
+  assert.ok(withTeammate.get('tank') < legacy.get('tank'))
+})
+
+test('팀원 힐이 없는 옛 경기는 예전과 똑같이 totalHeal 로 계산한다', () => {
+  const participants = [
+    { puuid: 'a', championName: 'Soraka', win: true, kills: 1, deaths: 2, assists: 12,
+      totalDamageDealtToChampions: 9000, totalDamageTaken: 20000, totalHeal: 30000, totalTimeCCDealt: 0 },
+    { puuid: 'b', championName: 'Jinx', win: true, kills: 9, deaths: 2, assists: 4,
+      totalDamageDealtToChampions: 30000, totalDamageTaken: 15000, totalHeal: 2000, totalTimeCCDealt: 0 },
+  ]
+  const before = calculateFairScores(participants)
+  // undefined 를 명시적으로 넘겨도 결과가 같아야 한다 (0 과 구분된다).
+  const explicit = calculateFairScores(
+    participants.map(p => ({ ...p, totalHealsOnTeammates: undefined })),
+  )
+  assert.deepEqual([...before.entries()], [...explicit.entries()])
+})
+
+test('팀원 힐 0 은 "모른다" 가 아니라 "아무도 못 살렸다" 로 센다', () => {
+  const mk = (heals) => [
+    { puuid: 'a', championName: 'Soraka', win: true, kills: 1, deaths: 2, assists: 12,
+      totalDamageDealtToChampions: 9000, totalDamageTaken: 20000, totalHeal: 30000,
+      totalHealsOnTeammates: heals, totalTimeCCDealt: 0 },
+    { puuid: 'b', championName: 'Jinx', win: true, kills: 9, deaths: 2, assists: 4,
+      totalDamageDealtToChampions: 30000, totalDamageTaken: 15000, totalHeal: 2000,
+      totalHealsOnTeammates: 0, totalTimeCCDealt: 0 },
+  ]
+  // 0 을 넘기면 폴백하지 않는다 — totalHeal 30000 이 살아나면 안 된다.
+  assert.notEqual(calculateFairScores(mk(0)).get('a'), calculateFairScores(mk(undefined)).get('a'))
+})

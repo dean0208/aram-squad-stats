@@ -1,17 +1,5 @@
 import { fetchDDragonBase } from './ddragon'
-import { DEFAULT_ROLE, type ChampionRoleMap, type Role } from './scoring'
-
-/** 챔피언이 여러 태그를 가질 때 대표 역할을 고르는 우선순위. */
-const TAG_PRIORITY = ['Marksman', 'Mage', 'Assassin', 'Fighter', 'Tank', 'Support'] as const
-
-const TAG_ROLE: Record<string, Role> = {
-  Marksman: 'carry',
-  Mage: 'mage',
-  Assassin: 'assassin',
-  Fighter: 'fighter',
-  Tank: 'tank',
-  Support: 'support',
-}
+import { roleFromTags, type ChampionRoleMap } from './scoring'
 
 /**
  * DDragon 태그에서 챔피언 → 역할 맵을 만든다.
@@ -25,8 +13,7 @@ export async function fetchChampionRoles(): Promise<ChampionRoleMap> {
     const data = await res.json()
     const map: ChampionRoleMap = {}
     for (const champ of Object.values(data.data) as { id: string; tags: string[] }[]) {
-      const tag = TAG_PRIORITY.find(candidate => champ.tags?.includes(candidate)) ?? champ.tags?.[0]
-      map[champ.id] = TAG_ROLE[tag ?? ''] ?? DEFAULT_ROLE
+      map[champ.id] = roleFromTags(champ.tags)
     }
     return map
   } catch {
