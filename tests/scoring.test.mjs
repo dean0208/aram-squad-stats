@@ -140,3 +140,106 @@ test('팀원 힐 0 은 "모른다" 가 아니라 "아무도 못 살렸다" 로 �
   // 0 을 넘기면 폴백하지 않는다 — totalHeal 30000 이 살아나면 안 된다.
   assert.notEqual(calculateFairScores(mk(0)).get('a'), calculateFairScores(mk(undefined)).get('a'))
 })
+
+// ─── 축 재정의: 실드 · 하드CC · 막아낸 피해 ──────────────────────────────────
+
+/** 새 축까지 채우는 참가자. 기존 helper 는 옛 필드만 세워서 따로 둔다. */
+const rich = (puuid, s) => ({
+  puuid,
+  championName: s.championName,
+  win: s.win ?? false,
+  kills: s.kills ?? 0,
+  deaths: s.deaths ?? 0,
+  assists: s.assists ?? 0,
+  totalDamageDealtToChampions: s.damage ?? 0,
+  totalDamageTaken: s.taken ?? 0,
+  totalHeal: s.healing ?? 0,
+  totalHealsOnTeammates: s.healsOnTeammates,
+  totalShieldsOnTeammates: s.shields,
+  totalTimeCCDealt: s.cc ?? 0,
+  hardCcCount: s.hardCc,
+  damageSelfMitigated: s.mitigated,
+})
+
+test('실드형 서포터가 힐형과 같은 보호량이면 같은 점수를 받는다', () => {
+  // 룰루(실드)와 소라카(힐)가 팀을 똑같이 지켰다면 점수도 같아야 한다.
+  // 예전에는 힐만 세서 실드형이 통째로 0 으로 잡혔다 (룰루 44.2 vs 밀리오 69.2).
+  const common = { championName: 'Soraka', damage: 10000, taken: 20000, cc: 30 }
+  const scores = calculateFairScores([
+    rich('healer', { ...common, healsOnTeammates: 20000, shields: 0 }),
+    // 역할이 갈리면 가중치가 달라져 힐/실드 비교가 아니게 된다. 같은 챔피언으로 둔다.
+    rich('shielder', { ...common, healsOnTeammates: 0, shields: 20000 }),
+  ], GAME)
+
+  assert.equal(scores.get('healer'), scores.get('shielder'))
+})
+
+test('실드를 안 모으던 옛 경기는 예전과 똑같이 힐만으로 계산된다', () => {
+  const withField = calculateFairScores([
+    rich('a', { championName: 'Soraka', healsOnTeammates: 9000, shields: undefined, damage: 8000, taken: 9000 }),
+    rich('b', { championName: 'Jinx', healsOnTeammates: 1000, shields: undefined, damage: 20000, taken: 5000 }),
+  ], GAME)
+  const legacy = calculateFairScores([
+    participant('a', { championName: 'Soraka', healing: 9000, damage: 8000, taken: 9000 }),
+    participant('b', { championName: 'Jinx', healing: 1000, damage: 20000, taken: 5000 }),
+  ], GAME)
+
+  assert.equal(withField.get('a'), legacy.get('a'))
+  assert.equal(withField.get('b'), legacy.get('b'))
+})
+
+test('CC 지속시간이 같아도 더 많이 묶은 쪽이 높다', () => {
+  // 지속시간만 보면 순간 하드CC(말파이트 궁)가 긴 소프트CC 에 밀린다.
+  const common = { championName: 'Malphite', damage: 12000, taken: 30000, cc: 100 }
+  const scores = calculateFairScores([
+    rich('engager', { ...common, hardCc: 12 }),
+    rich('slower', { ...common, hardCc: 2 }),
+  ], GAME)
+
+  assert.ok(
+    scores.get('engager') > scores.get('slower'),
+    `기대: engager > slower, 실제 ${scores.get('engager')} vs ${scores.get('slower')}`,
+  )
+})
+
+test('하드CC 를 아무도 안 보내면 CC 축은 지속시간만으로 돈다', () => {
+  const blended = calculateFairScores([
+    rich('a', { championName: 'Maokai', taken: 30000, cc: 300, hardCc: undefined }),
+    rich('b', { championName: 'Maokai', taken: 30000, cc: 100, hardCc: undefined }),
+  ], GAME)
+  const legacy = calculateFairScores([
+    participant('a', { championName: 'Maokai', taken: 30000, cc: 300 }),
+    participant('b', { championName: 'Maokai', taken: 30000, cc: 100 }),
+  ], GAME)
+
+  assert.equal(blended.get('a'), legacy.get('a'))
+  assert.equal(blended.get('b'), legacy.get('b'))
+})
+
+test('받은 피해가 같아도 더 많이 막아낸 쪽이 높다', () => {
+  // 어그로를 끌어서 버틴 것과 그냥 맞고 죽은 것을 가른다.
+  const common = { championName: 'Ornn', damage: 12000, taken: 40000, cc: 50 }
+  const scores = calculateFairScores([
+    rich('bruiser', { ...common, mitigated: 90000 }),
+    rich('squishy', { ...common, mitigated: 10000 }),
+  ], GAME)
+
+  assert.ok(
+    scores.get('bruiser') > scores.get('squishy'),
+    `기대: bruiser > squishy, 실제 ${scores.get('bruiser')} vs ${scores.get('squishy')}`,
+  )
+})
+
+test('막아낸 피해를 아무도 안 보내면 탱킹 축은 받은 피해만으로 돈다', () => {
+  const blended = calculateFairScores([
+    rich('a', { championName: 'Ornn', taken: 50000, cc: 20, mitigated: undefined }),
+    rich('b', { championName: 'Ornn', taken: 10000, cc: 20, mitigated: undefined }),
+  ], GAME)
+  const legacy = calculateFairScores([
+    participant('a', { championName: 'Ornn', taken: 50000, cc: 20 }),
+    participant('b', { championName: 'Ornn', taken: 10000, cc: 20 }),
+  ], GAME)
+
+  assert.equal(blended.get('a'), legacy.get('a'))
+  assert.equal(blended.get('b'), legacy.get('b'))
+})

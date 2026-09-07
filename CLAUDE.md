@@ -49,6 +49,8 @@ curl -X POST https://aram-squad-stats.vercel.app/api/recalculate-scores \
 `DATA_START_DATE` 검사가 `config.ts` 에 있고 Riot·LCU 경로가 모두 본다.
 예전에는 `riot.ts` 안에만 있어서 LCU 로 들어온 경기는 큐와 무관하게 저장됐다.
 
+**Riot API 키는 큐 2400(ARAM Mayhem) 경기를 못 읽는다.** 매치 상세가 403 이고 `ids?queue=2400` 이 0건이다. 라우팅·레이트리밋·키 만료 전부 아니고 큐만 막혔다. 그래서 2026-07-12 이후 경기는 전부 LCU 에이전트가 넣은 것이고, **과거 백필은 불가능하다.** 매시간 워크플로가 success 로 찍히는 건 `synced: 0` 도 성공이기 때문이니 초록불을 수집 성공으로 읽지 말 것.
+
 **힐 축은 `healingForScore()` 를 거쳐야 한다.** `healing` 은 자힐이 섞인 Riot `totalHeal` 이고, 팀원에게 준 힐만 담긴 `heals_on_teammates` 가 있으면 그걸 쓴다. 옛 경기는 `NULL` 이라 `healing` 으로 폴백하며 백필은 불가능하다. 새 기준 경기가 60판쯤 쌓이면 `ROLE_CALIBRATION` 을 다시 맞춰야 한다 (CC 와 같은 방아쇠).
 
 **팀 합계가 0인 지표는 정규화 분모에서도 뺀다.** 어떤 지표가 수집되지 않는 구간이

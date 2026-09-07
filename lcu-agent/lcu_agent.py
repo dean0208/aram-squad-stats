@@ -227,6 +227,28 @@ def normalize_game_detail(raw: dict) -> dict:
                 cc_dealt = int(value)
                 break
 
+        # 점수 축에 쓰는 값들. 포맷마다 키 이름이 갈려 후보를 순서대로 본다.
+        #
+        # 없으면 None 을 보낸다 — 0 으로 채우면 "아무것도 안 했다" 와 "이
+        # 클라이언트는 안 알려준다" 가 같아져, 나중에 구분할 수 없게 된다.
+        # 서버의 점수 계산은 None 인 축을 분모에서도 빼므로 눈금이 안 흔들린다.
+        def pick(*keys):
+            for key in keys:
+                value = stats.get(key)
+                if value is not None:
+                    return int(value)
+            return None
+
+        # 팀원에게 준 힐/실드. 자힐이 섞인 totalHeal 과 달리 팀 기여만 담는다.
+        heals_on_teammates = pick('totalHealsOnTeammates', 'totalHealOnTeammates')
+        shields_on_teammates = pick(
+            'totalDamageShieldedOnTeammates', 'totalDamageShieldedOnTeamMates',
+        )
+        # 방어로 막아낸 피해. 받은 피해와 섞어 "맞은 것" 과 "버틴 것" 을 가른다.
+        self_mitigated = pick('damageSelfMitigated', 'totalDamageSelfMitigated')
+        # 적을 묶은 횟수. Match-V5 의 challenges 필드라 LCU 에는 없을 수 있다.
+        hard_cc_count = pick('enemyChampionImmobilizations')
+
         participants.append({
             'puuid':                       riot_puuid,
             'gameName':                    game_name,
@@ -240,6 +262,10 @@ def normalize_game_detail(raw: dict) -> dict:
             'totalDamageDealtToChampions': int(stats.get('totalDamageDealtToChampions', 0)),
             'totalDamageTaken':            int(stats.get('totalDamageTaken', 0)),
             'totalHeal':                   int(stats.get('totalHeal', 0)),
+            'totalHealsOnTeammates':       heals_on_teammates,
+            'totalShieldsOnTeammates':     shields_on_teammates,
+            'damageSelfMitigated':         self_mitigated,
+            'hardCcCount':                 hard_cc_count,
             'goldEarned':                  int(stats.get('goldEarned', 0)),
             'totalTimeCCDealt':            cc_dealt,
             'augments':                    augments,
@@ -328,6 +354,40 @@ def run_debug(session: requests.Session, puuid: str):
             print(json.dumps(detail, indent=2, ensure_ascii=False)[:2000])
         else:
             print(f"  ✗ game detail 조회 실패 (두 엔드포인트 모두 실패)")
+
+    # 5. 점수 축에 쓰는 새 지표를 이 클라이언트가 알려주는지
+    #
+    # Riot API 키는 큐 2400(ARAM Mayhem) 경기를 아예 못 읽는다 (403). 그래서
+    # 실드·막아낸 피해·하드CC 는 이 경로로만 들어올 수 있고, 과거 백필이
+    # 가능한지도 여기 match history 가 얼마나 남아 있느냐로 갈린다.
+    print(f"\n[5] 점수 축 지표 확인")
+    probe_games = mayhem_all or all_games
+    if not probe_games:
+        print("  확인할 경기가 없다")
+    else:
+        wanted = {
+            '팀원 힐':    ('totalHealsOnTeammates', 'totalHealOnTeammates'),
+            '팀원 실드':  ('totalDamageShieldedOnTeammates', 'totalDamageShieldedOnTeamMates'),
+            '막아낸 피해': ('damageSelfMitigated', 'totalDamageSelfMitigated'),
+            '하드CC 횟수': ('enemyChampionImmobilizations',),
+            'CC 지속시간': ('totalTimeCrowdControlDealt', 'totalTimeCCDealt', 'timeCCingOthers'),
+        }
+        detail = get_game_detail(session, probe_games[0].get('gameId'))
+        parts = (detail or probe_games[0]).get('participants', [])
+        stats0 = parts[0].get('stats', {}) if parts else {}
+        for label, keys in wanted.items():
+            found = next(((k, stats0.get(k)) for k in keys if stats0.get(k) is not None), None)
+            print(f"  {label:12} {'O ' + found[0] + ' = ' + str(found[1]) if found else 'X (이 클라이언트는 안 알려줌)'}")
+
+        oldest = min(
+            (int(g.get('gameCreation', 0)) for g in probe_games if g.get('gameCreation')),
+            default=0,
+        )
+        from datetime import datetime, timezone
+        print(f"\n  이 클라이언트가 들고 있는 경기 {len(probe_games)}건")
+        if oldest:
+            when = datetime.fromtimestamp(oldest / 1000, tz=timezone.utc).date()
+            print(f"  가장 오래된 경기: {when} — 백필은 여기까지만 가능하다")
 
 # ─── 메인 ────────────────────────────────────────────────────────────────────
 
