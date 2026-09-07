@@ -23,10 +23,19 @@ export interface RiotParticipant {
   totalHeal: number
   /** 팀원에게 준 힐만. 자힐이 빠져 있다. 구버전 응답에는 없다. */
   totalHealsOnTeammates?: number
+  /** 팀원에게 준 실드량. 힐과 같은 HP 단위라 더해서 보호 축이 된다. */
+  totalDamageShieldedOnTeammates?: number
+  /** 방어 스탯·스킬로 막아낸 피해. "맞은 것" 과 "버틴 것" 을 가른다. */
+  damageSelfMitigated?: number
   totalTimeCCDealt: number
   /** Match-V5 의 대안 필드명. 일부 응답은 이쪽만 채워 준다. */
   timeCCingOthers?: number
   totalTimeCrowdControlDealt?: number
+  /** Match-V5 challenges. 오래된 응답에는 통째로 없을 수 있다. */
+  challenges?: {
+    /** 적을 실제로 묶은 횟수. CC 지속시간과 짝을 이룬다. */
+    enemyChampionImmobilizations?: number
+  }
   goldEarned: number
   item0?: number
   item1?: number
@@ -127,6 +136,27 @@ function resolveHealsOnTeammates(p: RiotParticipant): number | undefined {
   return typeof p.totalHealsOnTeammates === 'number' ? p.totalHealsOnTeammates : undefined
 }
 
+/** 팀원에게 준 실드. 없으면 undefined — 힐과 같은 이유로 0 과 구분한다. */
+function resolveShieldsOnTeammates(p: RiotParticipant): number | undefined {
+  return typeof p.totalDamageShieldedOnTeammates === 'number'
+    ? p.totalDamageShieldedOnTeammates
+    : undefined
+}
+
+/** 막아낸 피해. */
+function resolveSelfMitigated(p: RiotParticipant): number | undefined {
+  return typeof p.damageSelfMitigated === 'number' ? p.damageSelfMitigated : undefined
+}
+
+/**
+ * 적을 묶은 횟수. challenges 는 오래된 응답에 통째로 없을 수 있어 optional
+ * chaining 으로 읽고, 없으면 undefined 를 준다 (CC 축이 지속시간만 쓴다).
+ */
+function resolveHardCcCount(p: RiotParticipant): number | undefined {
+  const value = p.challenges?.enemyChampionImmobilizations
+  return typeof value === 'number' ? value : undefined
+}
+
 function extractItemIds(p: RiotParticipant): number[] {
   return [p.item0, p.item1, p.item2, p.item3, p.item4, p.item5]
     .filter((id): id is number => typeof id === 'number' && id > 0)
@@ -207,6 +237,9 @@ export async function syncNewGames(): Promise<{ synced: number; skipped: number 
       const allParticipants = info.participants.map((p) => ({
         ...p,
         totalTimeCCDealt: resolveCcDealt(p),
+        totalShieldsOnTeammates: resolveShieldsOnTeammates(p),
+        damageSelfMitigated: resolveSelfMitigated(p),
+        hardCcCount: resolveHardCcCount(p),
       }))
       const trackedInMatch = allParticipants.filter((p) =>
         TRACKED_PUUIDS.has(p.puuid),
@@ -276,6 +309,9 @@ export async function syncNewGames(): Promise<{ synced: number; skipped: number 
             damage_taken: p.totalDamageTaken,
             healing: p.totalHeal,
             heals_on_teammates: resolveHealsOnTeammates(p) ?? null,
+            shields_on_teammates: resolveShieldsOnTeammates(p) ?? null,
+            damage_self_mitigated: resolveSelfMitigated(p) ?? null,
+            hard_cc_count: resolveHardCcCount(p) ?? null,
             gold_earned: p.goldEarned,
             // allParticipants 에서 이미 리졸버를 거친 값이다.
             cc_score: p.totalTimeCCDealt,

@@ -77,7 +77,31 @@ export interface ScoreParticipant {
    * 합계에 들어가, 실제로 팀을 살린 서포터의 지분이 희석된다.
    */
   totalHealsOnTeammates?: number
+  /**
+   * 팀원에게 준 실드. 힐과 같은 HP 단위라 더해서 하나의 "보호" 축이 된다.
+   *
+   * 힐만 세던 시절에는 룰루·레나타·세라핀처럼 킷이 실드인 서포터의 주력
+   * 기여가 통째로 0 으로 잡혔다 (룰루 44.2 vs 밀리오 69.2). 점수가 플레이가
+   * 아니라 "킷이 힐이냐 실드냐" 를 재고 있었다.
+   */
+  totalShieldsOnTeammates?: number
+  /** CC 지속시간. */
   totalTimeCCDealt: number
+  /**
+   * 적을 묶은 횟수. 지속시간과 절반씩 섞는다.
+   *
+   * 지속시간만 쓰면 마오카이·오른 같은 긴 소프트 CC 가 말파이트·블리츠크랭크
+   * 같은 순간 하드 CC 를 이긴다 — 궁 한 방으로 한타를 여는 플레이가 점수는
+   * 더 낮아진다.
+   */
+  hardCcCount?: number
+  /**
+   * 방어 스탯·스킬로 막아낸 피해. 받은 피해와 절반씩 섞는다.
+   *
+   * 받은 피해만 쓰면 탱커 점수가 "얼마나 맞았나" 하나로 정해져, 어그로를
+   * 끌어서 맞은 것과 그냥 던진 것이 구분되지 않는다.
+   */
+  damageSelfMitigated?: number
 }
 
 /**
@@ -89,6 +113,16 @@ export interface ScoreParticipant {
  */
 export function healingForScore(p: ScoreParticipant): number {
   return p.totalHealsOnTeammates ?? p.totalHeal
+}
+
+/**
+ * 보호 축 값 = 팀원에게 준 힐 + 실드.
+ *
+ * 둘 다 "팀의 체력을 지켜 준 양" 이고 단위가 같은 HP 라 그대로 더한다.
+ * 실드를 모으기 전 경기는 undefined 라 힐만 센다 — 예전 점수가 그대로 재현된다.
+ */
+export function protectionForScore(p: ScoreParticipant): number {
+  return healingForScore(p) + (p.totalShieldsOnTeammates ?? 0)
 }
 
 export interface ScoreOptions {
@@ -196,11 +230,13 @@ export function calculateFairScores(
       kda: acc.kda + p.kills + p.assists,
       damage: acc.damage + p.totalDamageDealtToChampions,
       taken: acc.taken + p.totalDamageTaken,
-      healing: acc.healing + healingForScore(p),
+      mitigated: acc.mitigated + (p.damageSelfMitigated ?? 0),
+      protection: acc.protection + protectionForScore(p),
       cc: acc.cc + p.totalTimeCCDealt,
+      hardCc: acc.hardCc + (p.hardCcCount ?? 0),
       deaths: acc.deaths + p.deaths,
     }),
-    { kda: 0, damage: 0, taken: 0, healing: 0, cc: 0, deaths: 0 },
+    { kda: 0, damage: 0, taken: 0, mitigated: 0, protection: 0, cc: 0, hardCc: 0, deaths: 0 },
   )
 
   // 절대 성과는 팀 단위로 잰다. 개인 딜량을 쓰면 탱커·서포터가 역할 때문에
@@ -219,22 +255,52 @@ export function calculateFairScores(
     const axis = (value: number, total: number): number =>
       total > 0 ? Math.min(share(value, total) / fairShare, AXIS_SHARE_CAP) : 0
 
+    /**
+     * 두 신호를 반씩 섞은 축. 단위가 달라(초 vs 횟수) 원값을 더할 수 없으므로
+     * 각각 지분으로 만든 뒤 평균한다.
+     *
+     * 한쪽이 아직 수집되지 않은 구간에서는 남은 쪽만 쓴다. 그래야 백필이
+     * 끝나기 전과 후에 눈금이 어긋나지 않는다.
+     */
+    const blended = (
+      aValue: number, aTotal: number,
+      bValue: number, bTotal: number,
+    ): number => {
+      if (aTotal > 0 && bTotal > 0) return (axis(aValue, aTotal) + axis(bValue, bTotal)) / 2
+      if (aTotal > 0) return axis(aValue, aTotal)
+      if (bTotal > 0) return axis(bValue, bTotal)
+      return 0
+    }
+
+    // 탱킹 = 받은 피해 + 막아낸 피해. 맞은 것과 버틴 것을 함께 본다.
+    const tankingAxis = blended(
+      p.totalDamageTaken, totals.taken,
+      p.damageSelfMitigated ?? 0, totals.mitigated,
+    )
+    // CC = 지속시간 + 묶은 횟수. 소프트 CC 와 하드 CC 를 함께 센다.
+    const ccAxis = blended(
+      p.totalTimeCCDealt, totals.cc,
+      p.hardCcCount ?? 0, totals.hardCc,
+    )
+
     const relativeIndex =
       axis(p.kills + p.assists, totals.kda) * killWeight +
       axis(p.totalDamageDealtToChampions, totals.damage) * damageWeight +
-      axis(p.totalDamageTaken, totals.taken) * takenWeight +
-      axis(healingForScore(p), totals.healing) * healingWeight +
-      axis(p.totalTimeCCDealt, totals.cc) * ccWeight
+      tankingAxis * takenWeight +
+      // 보호 = 힐 + 실드. 원값 단위가 같은 HP 라 더한 뒤 한 번만 지분을 낸다.
+      axis(protectionForScore(p), totals.protection) * healingWeight +
+      ccAxis * ccWeight
 
     // 팀 합계가 0인 지표는 분모에서도 뺀다.
     // 어떤 지표가 수집되지 않는 구간이 생겨도 점수 눈금이 흔들리지 않게 하려는 것.
     // (CC 는 실제로 오래 0으로 저장되어 있었다)
+    // 섞은 축은 두 신호 중 하나라도 있으면 살아 있다고 본다.
     const effectiveWeight =
       (totals.kda > 0 ? killWeight : 0) +
       (totals.damage > 0 ? damageWeight : 0) +
-      (totals.taken > 0 ? takenWeight : 0) +
-      (totals.healing > 0 ? healingWeight : 0) +
-      (totals.cc > 0 ? ccWeight : 0)
+      (totals.taken > 0 || totals.mitigated > 0 ? takenWeight : 0) +
+      (totals.protection > 0 ? healingWeight : 0) +
+      (totals.cc > 0 || totals.hardCc > 0 ? ccWeight : 0)
 
     // 1.0 = 팀 평균만큼 기여. 역할별 눈금 차이를 마지막에 보정한다.
     const rawRelative = effectiveWeight > 0 ? relativeIndex / effectiveWeight : 1

@@ -28,7 +28,7 @@ for (const c of Object.values(cdata)) roles[c.id] = roleFromTags(c.tags)
 
 const { data: games, error } = await sb.from('games')
   .select(`id, played_at, duration_seconds, our_team_win,
-    game_results ( id, champion_name, kills, deaths, assists, damage_dealt, damage_taken, healing, heals_on_teammates, cc_score, perf_score, players(puuid) )`)
+    game_results ( id, champion_name, kills, deaths, assists, damage_dealt, damage_taken, healing, heals_on_teammates, shields_on_teammates, damage_self_mitigated, hard_cc_count, cc_score, perf_score, players(puuid) )`)
   .order('played_at', { ascending: false }).limit(2000)
 if (error) { console.error(error); process.exit(1) }
 
@@ -41,6 +41,9 @@ for (const g of games) {
     kills: r.kills, deaths: r.deaths, assists: r.assists,
     totalDamageDealtToChampions: r.damage_dealt, totalDamageTaken: r.damage_taken,
     totalHeal: r.healing, totalHealsOnTeammates: r.heals_on_teammates ?? undefined,
+    totalShieldsOnTeammates: r.shields_on_teammates ?? undefined,
+    damageSelfMitigated: r.damage_self_mitigated ?? undefined,
+    hardCcCount: r.hard_cc_count ?? undefined,
     totalTimeCCDealt: r.cc_score,
   }))
   const scores = calculateFairScores(parts, { durationSeconds: g.duration_seconds, roles })

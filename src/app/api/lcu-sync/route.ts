@@ -28,6 +28,12 @@ interface LcuParticipant {
    * 옛 에이전트는 안 보내므로 optional 이고, 없으면 totalHeal 로 폴백한다.
    */
   totalHealsOnTeammates?: number
+  /** 팀원에게 준 실드. 힐과 더해 보호 축이 된다. */
+  totalShieldsOnTeammates?: number
+  /** 방어로 막아낸 피해. 받은 피해와 섞어 탱킹 축이 된다. */
+  damageSelfMitigated?: number
+  /** 적을 묶은 횟수. CC 지속시간과 섞는다. */
+  hardCcCount?: number
   goldEarned: number
   totalTimeCCDealt: number
   augments: number[]     // augment IDs (없으면 [])
@@ -170,6 +176,9 @@ export async function POST(request: NextRequest) {
         totalDamageTaken: p.totalDamageTaken,
         totalHeal: p.totalHeal,
         totalHealsOnTeammates: p.totalHealsOnTeammates,
+        totalShieldsOnTeammates: p.totalShieldsOnTeammates,
+        damageSelfMitigated: p.damageSelfMitigated,
+        hardCcCount: p.hardCcCount,
         totalTimeCCDealt: p.totalTimeCCDealt,
         goldEarned: p.goldEarned,
       }))
@@ -198,6 +207,9 @@ export async function POST(request: NextRequest) {
             damage_taken: p.totalDamageTaken,
             healing: p.totalHeal,
             heals_on_teammates: p.totalHealsOnTeammates ?? null,
+            shields_on_teammates: p.totalShieldsOnTeammates ?? null,
+            damage_self_mitigated: p.damageSelfMitigated ?? null,
+            hard_cc_count: p.hardCcCount ?? null,
             gold_earned: p.goldEarned,
             cc_score: p.totalTimeCCDealt,
             augment_ids: p.augments ?? [],

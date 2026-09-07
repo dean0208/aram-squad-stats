@@ -18,6 +18,9 @@ interface StoredResult {
   damage_taken: number
   healing: number
   heals_on_teammates: number | null
+  shields_on_teammates: number | null
+  damage_self_mitigated: number | null
+  hard_cc_count: number | null
   cc_score: number
   players: { puuid: string } | null
 }
@@ -73,6 +76,9 @@ export async function POST(request: NextRequest) {
           damage_taken,
           healing,
           heals_on_teammates,
+          shields_on_teammates,
+          damage_self_mitigated,
+          hard_cc_count,
           cc_score,
           players ( puuid )
         )
@@ -109,6 +115,9 @@ export async function POST(request: NextRequest) {
           totalDamageTaken: result.damage_taken,
           totalHeal: result.healing,
           totalHealsOnTeammates: result.heals_on_teammates ?? undefined,
+          totalShieldsOnTeammates: result.shields_on_teammates ?? undefined,
+          damageSelfMitigated: result.damage_self_mitigated ?? undefined,
+          hardCcCount: result.hard_cc_count ?? undefined,
           totalTimeCCDealt: result.cc_score,
         }))
 
