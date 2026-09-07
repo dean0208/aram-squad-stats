@@ -1,12 +1,12 @@
 import { NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { createServerClient } from '@/lib/supabase'
-import { TRACKED_PLAYERS, DDRAGON_BASE } from '@/lib/config'
-import { calcTeamPerfScores, calcContributionScore } from '@/lib/riot'
+import { TRACKED_PLAYERS, DATA_START_DATE, SUPPORTED_QUEUES } from '@/lib/config'
+import { calcTeamPerfScores } from '@/lib/riot'
 import type { RiotParticipant } from '@/lib/riot'
 import { resolveTrackedParticipants } from '@/lib/lcuSyncMapping'
 import { GAMES_CACHE_TAG } from '@/lib/games'
-import { fetchChampionRoles } from '@/lib/championRoles'
+import { fetchChampionRoles, fetchChampionIdToName } from '@/lib/championRoles'
 
 // ─── Types (LCU normalized payload) ──────────────────────────────────────────
 
@@ -23,6 +23,11 @@ interface LcuParticipant {
   totalDamageDealtToChampions: number
   totalDamageTaken: number
   totalHeal: number
+  /**
+   * 팀원에게 준 힐만 (자힐 제외). 에이전트가 보내 주면 점수는 이 값을 쓴다.
+   * 옛 에이전트는 안 보내므로 optional 이고, 없으면 totalHeal 로 폴백한다.
+   */
+  totalHealsOnTeammates?: number
   goldEarned: number
   totalTimeCCDealt: number
   augments: number[]     // augment IDs (없으면 [])
@@ -42,26 +47,6 @@ interface LcuSyncPayload {
   games: LcuGame[]
 }
 
-// ─── DDragon champion ID → name 매핑 ─────────────────────────────────────────
-
-let champMap: Record<number, string> | null = null
-
-async function getChampMap(): Promise<Record<number, string>> {
-  if (champMap) return champMap
-  try {
-    const res = await fetch(`${DDRAGON_BASE}/data/en_US/champion.json`, { next: { revalidate: 86400 } })
-    const data = await res.json()
-    const map: Record<number, string> = {}
-    for (const champ of Object.values(data.data) as { key: string; id: string }[]) {
-      map[parseInt(champ.key)] = champ.id
-    }
-    champMap = map
-    return map
-  } catch {
-    return {}
-  }
-}
-
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
@@ -75,9 +60,19 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServerClient()
-    const [champNames, championRoles] = await Promise.all([getChampMap(), fetchChampionRoles()])
+    // 이름 카탈로그는 최신 DDragon 을 본다. 고정 버전으로 조회하면 신규
+    // 챔피언이 `Champion800` 으로 저장되고 나중에 복구 작업이 필요해진다.
+    const [champNames, championRoles] = await Promise.all([
+      fetchChampionIdToName(),
+      fetchChampionRoles(),
+    ])
 
-    // 플레이어 rows 확보
+    // players upsert (없을 경우 대비) 후 실제 DB ID 를 읽어 결과 저장에 쓴다.
+    await supabase.from('players').upsert(
+      TRACKED_PLAYERS.map((p) => ({ puuid: p.puuid, game_name: p.gameName, tag_line: p.tagLine })),
+      { onConflict: 'puuid' },
+    )
+
     const { data: playerRows } = await supabase
       .from('players')
       .select('id, puuid')
@@ -85,22 +80,6 @@ export async function POST(request: NextRequest) {
 
     const playerIdMap = new Map<string, string>()
     for (const row of playerRows ?? []) playerIdMap.set(row.puuid, row.id)
-
-    // players upsert (없을 경우 대비)
-    for (const p of TRACKED_PLAYERS) {
-      await supabase.from('players').upsert(
-        { puuid: p.puuid, game_name: p.gameName, tag_line: p.tagLine },
-        { onConflict: 'puuid' },
-      )
-    }
-
-    // upsert 직후 실제 DB ID를 다시 읽어 결과 저장에 사용한다.
-    const { data: refreshedPlayerRows } = await supabase
-      .from('players')
-      .select('id, puuid')
-      .in('puuid', TRACKED_PLAYERS.map((p) => p.puuid))
-    playerIdMap.clear()
-    for (const row of refreshedPlayerRows ?? []) playerIdMap.set(row.puuid, row.id)
     if (playerIdMap.size !== TRACKED_PLAYERS.length) {
       return Response.json({ synced: 0, skipped: body.games.length, errors: ['4명 플레이어 ID를 모두 확인하지 못했습니다.'] })
     }
@@ -122,6 +101,11 @@ export async function POST(request: NextRequest) {
     const errors: string[] = []
 
     for (const game of body.games) {
+      // Riot 경로와 같은 기준으로 거른다. 시크릿을 아는 클라이언트가 아무 큐,
+      // 아무 시점의 경기나 밀어 넣지 못하도록 서버에서도 확인한다.
+      if (!SUPPORTED_QUEUES.includes(game.queueId)) { skipped++; continue }
+      if (new Date(game.gameCreation) < DATA_START_DATE) { skipped++; continue }
+
       // 4명 모두 서로 다른 고정 Riot PUUID로 확인
       const tracked = resolveTrackedParticipants(game.participants, TRACKED_PLAYERS)
       if (!tracked) { skipped++; continue }
@@ -136,23 +120,6 @@ export async function POST(request: NextRequest) {
       // 변환된 tracked participants (Riot PUUID 기준)
       const trackedParticipants = participants.filter((p) => TRACKED_PUUID_SET.has(p.puuid))
 
-      // RiotParticipant 형태로 변환 (점수 계산용)
-      const riotParts: RiotParticipant[] = participants.map((p) => ({
-        puuid: p.puuid,
-        championId: p.championId,
-        championName: p.championName,
-        teamId: p.teamId,
-        win: p.win,
-        kills: p.kills,
-        deaths: p.deaths,
-        assists: p.assists,
-        totalDamageDealtToChampions: p.totalDamageDealtToChampions,
-        totalDamageTaken: p.totalDamageTaken,
-        totalHeal: p.totalHeal,
-        totalTimeCCDealt: p.totalTimeCCDealt,
-        goldEarned: p.goldEarned,
-      }))
-
       // 우리 팀 판별 (Riot PUUID로 변환된 participants 기준)
       const teamCounts = new Map<number, number>()
       for (const p of trackedParticipants) teamCounts.set(p.teamId, (teamCounts.get(p.teamId) ?? 0) + 1)
@@ -161,7 +128,7 @@ export async function POST(request: NextRequest) {
 
       // 기존 게임은 결과가 비어 있을 때만 복구하고, 결과가 있으면 건너뛴다.
       const existingGameId = existingByMatchId.get(game.gameId)
-      let gameRow: { id: string } | null = existingGameId ? { id: existingGameId } : null
+      let gameId: string
       if (existingGameId) {
         const { count, error: countError } = await supabase
           .from('game_results')
@@ -169,6 +136,7 @@ export async function POST(request: NextRequest) {
           .eq('game_id', existingGameId)
         if (countError) { errors.push(`${game.gameId}: ${countError.message}`); continue }
         if ((count ?? 0) > 0) { skipped++; continue }
+        gameId = existingGameId
       } else {
         const { data: insertedGame, error: gameErr } = await supabase
           .from('games')
@@ -185,59 +153,73 @@ export async function POST(request: NextRequest) {
           errors.push(`${game.gameId}: ${gameErr?.message ?? '게임 저장 실패'}`)
           continue
         }
-        gameRow = insertedGame
+        gameId = insertedGame.id
       }
 
       // 점수 계산 (경기 전체를 한 번만 계산해서 4명분을 뽑는다)
-      const trackedParts = riotParts.filter((p) => TRACKED_PUUID_SET.has(p.puuid))
-      const gameScores = calcTeamPerfScores(trackedParts, {
+      const riotParts: RiotParticipant[] = trackedParticipants.map((p) => ({
+        puuid: p.puuid,
+        championId: p.championId,
+        championName: p.championName,
+        teamId: p.teamId,
+        win: p.win,
+        kills: p.kills,
+        deaths: p.deaths,
+        assists: p.assists,
+        totalDamageDealtToChampions: p.totalDamageDealtToChampions,
+        totalDamageTaken: p.totalDamageTaken,
+        totalHeal: p.totalHeal,
+        totalHealsOnTeammates: p.totalHealsOnTeammates,
+        totalTimeCCDealt: p.totalTimeCCDealt,
+        goldEarned: p.goldEarned,
+      }))
+      const gameScores = calcTeamPerfScores(riotParts, {
         durationSeconds: game.gameDuration,
         roles: championRoles,
       })
-      const perfScores = trackedParts.map((p) => ({
-        puuid: p.puuid,
-        perf: gameScores.get(p.puuid) ?? 0,
-      }))
 
-      // game_results 삽입
-      for (const p of trackedParts) {
-        const playerId = playerIdMap.get(p.puuid)
-        if (!playerId) {
-          errors.push(`${game.gameId}: ${p.puuid} 플레이어 ID 누락`)
-          continue
-        }
-
-        const lcuP = participants.find((x) => x.puuid === p.puuid)!
-        const perf = perfScores.find((ps) => ps.puuid === p.puuid)?.perf ?? 0
-        const contribution = calcContributionScore(p.puuid, perfScores)
-
-        const { error: resultError } = await supabase.from('game_results').insert({
-          game_id: gameRow!.id,
-          player_id: playerId,
-          champion_id: p.championId,
-          champion_name: p.championName,
-          kills: p.kills,
-          deaths: p.deaths,
-          assists: p.assists,
-          damage_dealt: p.totalDamageDealtToChampions,
-          damage_taken: p.totalDamageTaken,
-          healing: p.totalHeal,
-          gold_earned: p.goldEarned,
-          cc_score: p.totalTimeCCDealt,
-          augment_ids: lcuP.augments ?? [],
-          perf_score: Math.round(perf * 10) / 10,
-          contribution_score: contribution,
+      // 4인 결과를 한 번의 insert 로 보낸다.
+      const resultRows = trackedParticipants
+        .map((p) => {
+          const playerId = playerIdMap.get(p.puuid)
+          if (!playerId) {
+            errors.push(`${game.gameId}: ${p.puuid} 플레이어 ID 누락`)
+            return null
+          }
+          return {
+            game_id: gameId,
+            player_id: playerId,
+            champion_id: p.championId,
+            champion_name: p.championName,
+            kills: p.kills,
+            deaths: p.deaths,
+            assists: p.assists,
+            damage_dealt: p.totalDamageDealtToChampions,
+            damage_taken: p.totalDamageTaken,
+            healing: p.totalHeal,
+            heals_on_teammates: p.totalHealsOnTeammates ?? null,
+            gold_earned: p.goldEarned,
+            cc_score: p.totalTimeCCDealt,
+            augment_ids: p.augments ?? [],
+            // 점수에는 아직 반영하지 않는다. 다만 원본이 사라지면 소급이
+            // 불가능하므로(cc_score 가 그랬다) 지금부터 남겨 둔다.
+            item_ids: p.itemIds ?? [],
+            perf_score: Math.round((gameScores.get(p.puuid) ?? 0) * 10) / 10,
+          }
         })
-        if (resultError) errors.push(`${game.gameId}: ${resultError.message}`)
+        .filter((row): row is NonNullable<typeof row> => row !== null)
+
+      if (resultRows.length !== tracked.length) {
+        if (!existingGameId) await supabase.from('games').delete().eq('id', gameId)
+        errors.push(`${game.gameId}: 4명 결과 구성 불완전 (${resultRows.length}/${tracked.length})`)
+        continue
       }
 
-      const { count: savedResultCount } = await supabase
-        .from('game_results')
-        .select('id', { count: 'exact', head: true })
-        .eq('game_id', gameRow!.id)
-      if ((savedResultCount ?? 0) !== tracked.length) {
-        if (!existingGameId) await supabase.from('games').delete().eq('id', gameRow!.id)
-        errors.push(`${game.gameId}: 4명 결과 저장 불완전 (${savedResultCount ?? 0}/${tracked.length})`)
+      const { error: resultsError } = await supabase.from('game_results').insert(resultRows)
+      if (resultsError) {
+        // 결과 없는 게임 행을 남기면 다음 동기화가 "이미 저장됨"으로 건너뛴다.
+        if (!existingGameId) await supabase.from('games').delete().eq('id', gameId)
+        errors.push(`${game.gameId}: ${resultsError.message}`)
         continue
       }
 
