@@ -85,7 +85,23 @@ export async function fetchMatchDetail(matchId: string): Promise<RiotMatchDetail
   const res = await fetch(url, { headers: riotHeaders() })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`Riot match detail ${res.status}: ${text}`)
+    // 레이트리밋(429)과 인증 실패(403)는 대응이 다른데 본문만 보면 구분되지
+    // 않는다. Riot 이 붙여 주는 진단 헤더를 함께 남긴다.
+    const diagnostics = [
+      'x-rate-limit-type',
+      'retry-after',
+      'x-app-rate-limit',
+      'x-app-rate-limit-count',
+      'x-method-rate-limit',
+      'x-method-rate-limit-count',
+    ]
+      .map(name => [name, res.headers.get(name)] as const)
+      .filter((entry): entry is readonly [string, string] => entry[1] !== null)
+      .map(([name, value]) => `${name}=${value}`)
+      .join(' ')
+    throw new Error(
+      `Riot match detail ${res.status}: ${text}${diagnostics ? ` | ${diagnostics}` : ''}`,
+    )
   }
   return res.json()
 }
