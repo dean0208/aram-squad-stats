@@ -72,7 +72,7 @@ export interface RiotMatchDetail {
 export async function fetchRecentMatches(puuid: string, count = 20): Promise<string[]> {
   // Fetch without queue filter then dedupe — single call is simpler than multiple
   const url = `${RIOT_BASE}/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?count=${count}`
-  const res = await fetch(url, { headers: riotHeaders() })
+  const res = await fetch(url, { headers: riotHeaders(), cache: 'no-store' })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`Riot match history ${res.status}: ${text}`)
@@ -82,7 +82,8 @@ export async function fetchRecentMatches(puuid: string, count = 20): Promise<str
 
 export async function fetchMatchDetail(matchId: string): Promise<RiotMatchDetail> {
   const url = `${RIOT_BASE}/lol/match/v5/matches/${matchId}`
-  const res = await fetch(url, { headers: riotHeaders() })
+  // 캐시를 타면 키가 죽어도 성공처럼 보인다. 수집은 항상 실물로 때린다.
+  const res = await fetch(url, { headers: riotHeaders(), cache: 'no-store' })
   if (!res.ok) {
     const text = await res.text()
     // 레이트리밋(429)과 인증 실패(403)는 대응이 다른데 본문만 보면 구분되지
