@@ -42,6 +42,15 @@ curl -X POST https://aram-squad-stats.vercel.app/api/recalculate-scores \
 **점수는 수집·재계산 양쪽 모두 추적 4인 기준으로 계산한다.** `game_results` 에는
 4명만 저장되므로, 한쪽만 10인 기준으로 두면 같은 경기의 점수를 재현할 수 없다.
 
+**저장 점수 컬럼은 `perf_score` 하나다.** 같은 값을 담고 있던
+`contribution_score` 는 제거했다. 화면 표기는 `toDisplayScore()` 를 쓴다.
+
+**수집 필터는 두 경로가 같아야 한다.** 큐 종류(`SUPPORTED_QUEUES`)와
+`DATA_START_DATE` 검사가 `config.ts` 에 있고 Riot·LCU 경로가 모두 본다.
+예전에는 `riot.ts` 안에만 있어서 LCU 로 들어온 경기는 큐와 무관하게 저장됐다.
+
+**힐 축은 `healingForScore()` 를 거쳐야 한다.** `healing` 은 자힐이 섞인 Riot `totalHeal` 이고, 팀원에게 준 힐만 담긴 `heals_on_teammates` 가 있으면 그걸 쓴다. 옛 경기는 `NULL` 이라 `healing` 으로 폴백하며 백필은 불가능하다. 새 기준 경기가 60판쯤 쌓이면 `ROLE_CALIBRATION` 을 다시 맞춰야 한다 (CC 와 같은 방아쇠).
+
 **팀 합계가 0인 지표는 정규화 분모에서도 뺀다.** 어떤 지표가 수집되지 않는 구간이
 생겨도 점수 눈금이 흔들리지 않게 하려는 것이다. CC 가 실제로 오래 0이었다.
 
@@ -66,6 +75,12 @@ curl -X POST https://aram-squad-stats.vercel.app/api/recalculate-scores \
 
 ## 알려진 미해결
 
+- **아이템은 저장만 하고 점수에 쓰지 않는다.** `item_ids` 는 두 경로 모두
+  기록한다. 빌드를 점수에 어떻게 넣을지 정하지 못해 미뤄 둔 상태고, 원본이
+  없으면 소급이 불가능하므로(아래 `cc_score` 가 그랬다) 수집만 먼저 해 둔다.
+- **홈은 여전히 조회한 전체 경기를 클라이언트로 직렬화한다.** Supabase 조회
+  자체는 `GAMES_CACHE_TAG` 로 캐시되지만, 집계를 서버로 옮기지 않는 한 payload
+  는 경기 수에 비례해 계속 커진다.
 - **2026-09-06 이전 경기의 `cc_score` 는 전부 0.** 에이전트가 LCU 의
   `totalTimeCrowdControlDealt` 대신 Match-V5 의 `totalTimeCCDealt` 를 읽던 버그였다.
   지금은 고쳐졌지만 원본이 없어 백필 불가. Riot Match-V5 는 과거 기록에 CC 를
@@ -78,5 +93,11 @@ curl -X POST https://aram-squad-stats.vercel.app/api/recalculate-scores \
 - `DDRAGON_VERSION`(`config.ts`)은 이미지 URL 용 고정값이다. 이름·역할 조회는
   `lib/ddragon.ts` 가 최신 버전을 런타임에 해석한다. 신규 챔피언 아이콘이 깨지면
   이 상수를 올린다.
+
+## 스키마
+
+정본은 `supabase/migrations/` 다. 파일명 날짜 순서대로 적용하면 현재 상태가
+나온다. 예전에는 `supabase/schema.sql` 이 따로 있어 어느 쪽이 실제 DB 와 같은지
+알 수 없었다.
 
 자세한 설계 근거와 수치는 `README.md`, 현황 정리는 `docs/current-state-audit.md`.

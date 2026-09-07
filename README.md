@@ -8,10 +8,11 @@
 | --- | --- |
 | `src/app` | Next.js App Router 페이지 및 API 라우트 |
 | `src/lib` | 점수 계산, 인사이트, Riot/LCU 매핑 등 도메인 로직 |
-| `src/components` | 대시보드 UI 컴포넌트 |
+| `src/components` | 대시보드 UI 컴포넌트 (`MvpCelebration.tsx` = MVP 축하 모달) |
 | `tests` | `node --test` 기반 순수 로직 테스트 |
-| `supabase` | DB 스키마 및 마이그레이션 |
+| `supabase/migrations` | DB 스키마 정본. 파일명 날짜 순서대로 적용하면 현재 상태가 된다 |
 | `docs` | 현황 감사 문서, 통계 용어 사전 |
+| `public/players` | MVP 축하 연출에 합성할 플레이어 사진 (`src/lib/config.ts` 의 `PLAYER_PHOTOS` 참고) |
 | `lcu-agent` | 롤 클라이언트에서 전적을 수집해 서버로 보내는 Windows 로컬 에이전트 — [설치·실행 가이드](lcu-agent/README.md) |
 
 ## 데이터 조회 레이어
@@ -20,11 +21,12 @@
 
 | 함수 | 용도 |
 | --- | --- |
-| `fetchGames(limit)` | 최신순 경기 목록. 중첩 플레이어는 `puuid`/`game_name`만 선택 |
+| `fetchGames(limit)` | 최신순 경기 목록. 중첩 플레이어는 `puuid`/`game_name`만 선택. `GAMES_CACHE_TAG`로 캐시 |
+| `fetchPlayers()` | 추적 4인 행을 설정 순서대로. `GAMES_CACHE_TAG`로 캐시 |
 | `fetchGameById(id)` | 경기 상세. `tag_line`까지 포함한 전체 컬럼 |
 | `getCachedNicknames()` | 스쿼드 마일스톤. `GAMES_CACHE_TAG`로 캐시 |
 
-`getCachedNicknames()`는 동기화가 성공했을 때만 무효화됩니다 —
+이 조회들은 동기화가 성공했을 때만 무효화됩니다 —
 `/api/sync`와 `/api/lcu-sync`가 `revalidateTag(GAMES_CACHE_TAG, { expire: 0 })`을 호출합니다.
 
 ## API 엔드포인트
@@ -76,13 +78,17 @@
 (데스 지분 28.6% vs 제 몫 25%), 탱커는 −0.4점으로 사실상 손해가 없다.
 칼바람에서는 역할과 무관하게 데스 지분이 23~29% 로 비슷하다.
 
-**서포터는 표본이 3건뿐이라 보정하지 않았다.** 픽 성향이 바뀌면
-`ROLE_CALIBRATION` 을 다시 계산해야 한다 — 역할별 `relative` 평균을 구해 그 값을
-넣으면 된다.
+**보정계수는 누적 221경기에 반복 대입해 여섯 역할의 평균이 전체 평균과
+±0.1점 안에서 만나도록 맞춘 값이다** (역할별 표본 31~270건). 픽 성향이 바뀌면
+다시 계산해야 한다 — 역할별 점수 평균 / 전체 평균의 비를 계수에 곱해 몇 번
+반복하면 수렴한다.
 
 ### 그 외 주의할 점
 
-- **역할 판정은 DDragon 태그**를 쓴다 (`src/lib/championRoles.ts`). 하드코딩 목록만 쓰던 시절에는 실제 픽의 32%만 판정됐다. 목록은 조회 실패 시 폴백으로만 남아 있다.
+- **역할 판정은 DDragon 태그의 첫 번째 값**을 쓴다 (`roleFromTags`, `src/lib/scoring.ts`). 하드코딩 목록만 쓰던 시절에는 실제 픽의 32%만 판정됐고, 그 뒤 고정 우선순위표(Marksman → … → Support)를 쓰던 시절에는 Support 가 맨 뒤라 **야나·소라카·밀리오·나미·질리언이 전부 mage 로 샜다** — 최근 30경기에서 서포터로 잡힌 픽이 0건, 등장 챔피언 67종 중 21종이 틀린 역할을 받고 있었다. 예외는 하나로, Support 와 Tank 를 함께 단 챔피언(탐 켄치·브라움)은 앞라인으로 본다.
+- **한 축의 지분은 제 몫의 2배에서 끊는다** (`AXIS_SHARE_CAP`). 힐처럼 한 명이 팀 합계의 70%를 가져갈 수 있는 축은 위로 열려 있어서, 서포터 가중치와 곱해지면 다른 축을 전부 덮어썼다 (보정 전 소라카 99.2점).
+- **힐은 팀원에게 준 것만 센다.** `healing`(Riot `totalHeal`)에는 물약·흡혈·자힐이 섞여 있어, 탐 켄치 65k·오른 43k 같은 순수 자힐이 팀 힐 합계를 부풀리고 실제로 팀을 살린 서포터의 지분을 희석했다. 그래서 팀원에게 준 힐만 담는 `heals_on_teammates` 를 따로 두고 `healingForScore()` 가 그것을 우선 쓴다. `NULL` 인 옛 경기는 예전처럼 `healing` 으로 폴백한다 — `healing` 의 뜻을 조용히 바꾸면 옛 행과 새 행을 구분할 수 없게 된다. **과거 경기는 원본이 없어 백필이 불가능하다.**
+- **CC 가 쌓이면 보정계수를 다시 계산해야 한다.** `cc_score` 는 2026-09-06 부터만 실려 있다 (221경기 중 10경기). CC 는 탱커·서포터에서 가중치가 30 으로 가장 큰 축인데, 지금 보정계수는 CC 가 거의 없는 표본에서 뽑은 값이다. CC 가 실린 경기가 60판쯤 쌓이면 그 구간만으로 다시 맞춰야 눈금이 맞는다. 과거 경기는 원본이 없어 백필이 불가능하다. **자힐 제외(`heals_on_teammates`, 2026-09-08 부터)도 같은 이유로 재보정 방아쇠다.** 두 방아쇠가 같은 구간을 가리키므로 한 번에 묶어서 맞추면 된다.
 - **팀 합계가 0인 지표는 정규화 분모에서도 뺀다.** 어떤 지표가 수집되지 않는 구간이 생겨도 점수 눈금이 흔들리지 않는다. CC는 실제로 오래 0으로 저장되어 있었다.
 - **절대 성과는 팀 단위로만 잰다.** 개인 딜량을 쓰면 탱커·서포터가 역할 때문에 구조적으로 손해를 본다.
 - 저장되는 `game_results` 에는 추적 4인만 남으므로, 수집과 재계산이 **모두 4인 기준**으로 계산한다. 한쪽만 10인 기준으로 두면 같은 경기의 점수가 재현되지 않는다.
@@ -103,10 +109,65 @@ curl -X POST https://aram-squad-stats.vercel.app/api/recalculate-scores \
 응답의 `updated` 는 갱신된 결과 수, `renamed` 는 이름을 복구한 챔피언 수다.
 실행 후 캐시는 자동으로 무효화된다.
 
+시크릿 없이 로컬에서 돌릴 때는 같은 일을 하는 스크립트를 쓴다. 이전 점수는
+`perf-score-backup.json` 에 남는다.
+
+```bash
+node scripts/recalc-scores.mjs            # 미리보기 (쓰지 않는다)
+node scripts/recalc-scores.mjs --apply    # 실제 반영
+```
+
+## 점수 컬럼
+
+저장되는 점수는 `game_results.perf_score` **하나뿐이다.**
+
+예전에는 `contribution_score` 가 함께 있었지만, `calcContributionScore()` 가
+계산된 perf 를 그대로 돌려주고 있어서 두 컬럼의 값이 항상 같았다. payload 와
+화면 라벨만 두 배가 되어 `perf_score` 로 통합했다
+(`supabase/migrations/20260907_single_score_and_teammate_healing.sql`, 2026-09-08 적용).
+
+화면 표기는 `src/lib/displayScore.ts` 의 `toDisplayScore()` 가 담당하고,
+지금은 0-100 로 자르고 반올림만 한다.
+
+## 하루의 상 연출 (MVP · 걸배이)
+
+선택한 날짜가 **가장 최근 날짜일 때** 그 날의 MVP 나 걸배이가 바뀌면, 해당
+플레이어의 사진을 크게 띄우는 모달이 2초간 뜬다
+(`src/components/MvpCelebration.tsx`).
+
+- **둘 다 바뀌면 화면을 위아래로 정확히 반씩** 나눠 스크롤 없이 한 화면에 담고,
+  하나만 바뀌면 그쪽이 화면 전체를 쓴다. 위 칸은 꽃가루가 쏟아지는 축하,
+  아래 칸은 파리가 맴도는 반대 연출이다.
+- 띄울지 말지는 `src/lib/mvpCelebration.ts` 의 `resolveCelebrationPlan()` 이
+  정한다. 순수 함수라 테스트가 있다.
+- 이미 보여 준 대상은 `localStorage` 의 `aram:last-mvp-celebration` /
+  `aram:last-anchor-celebration` 으로 기억해 다시 띄우지 않는다. 지난 날짜를
+  넘겨볼 때는 아예 뜨지 않는다.
+- 걸배이 판정은 `src/lib/dailyTrend.ts` 가 맡는다. 화면 하단 카드와 연출이 같은
+  사람을 가리켜야 해서 한 곳에 뒀다.
+- 사진은 `public/players/` 에 넣고 `PLAYER_PHOTOS`(`src/lib/config.ts`)에 경로를
+  적는다. 얼굴이 가운데 오는 정사각형 이미지가 원형 마스크에 잘 맞는다.
+  **파일이 없으면 이름 첫 글자를 대신 세운다.**
+- 모달은 `createPortal` 로 `body` 에 직접 붙인다. 대시보드 안에 두면 조상의
+  stacking context 에 갇혀, `z-50` 인데도 `z-40` 짜리 하단탭이 위로 올라왔다.
+- **동작 줄이기(`prefers-reduced-motion`)를 켠 화면에서는 움직임만 뺀다.**
+  예전에는 꽃가루와 파리를 `display: none` 으로 통째로 지웠는데, 그러면 축하도
+  놀림도 사라져 두 칸이 똑같이 밋밋해졌다. 지금은 흩뿌린 자리에 멈춰 세운다.
+  (떨어지는 꽃가루는 전부 `top: 0` 에 겹치므로 개체마다 `--confetti-top` 을 준다.)
+
 ## 메달과 마일스톤
 
 - **메달**(`src/lib/medals.ts`)은 나머지 참가자 평균 대비 배수 기준을 넘어야 발급된다. 스탯별 자연 분산이 달라 기준을 따로 잡았고(골드 1.1배, 힐량 3배), 누적 표본에서 발급률이 대략 절반이 되는 지점이다. MVP만 항상 발급한다.
 - **마일스톤**(`src/lib/nicknames.ts`)은 2위와의 격차를 함께 보여준다. 4명이 항상 같은 수를 뛰어 누적 총량이 잘 수렴하고, 실측에서 어시스트 1위 격차는 1.1% 였다. 5% 미만이면 "접전"으로 표시한다.
+
+## 아이템 데이터
+
+`game_results.item_ids` 는 두 수집 경로 모두 저장한다. **다만 점수에는 아직
+반영하지 않는다** — 빌드를 점수에 넣는 방법을 정하지 못해 미뤄 둔 상태다.
+
+그래도 저장은 지금부터 해 둔다. `cc_score` 가 한동안 0으로 저장되다가 원본이
+없어 백필이 불가능해진 전례가 있다. 나중에 빌드 분석을 붙일 때 과거 경기까지
+쓰려면 수집 시점에 남겨 두는 수밖에 없다.
 
 ## 전적 동기화
 
