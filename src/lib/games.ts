@@ -2,7 +2,8 @@ import { unstable_cache } from 'next/cache'
 import { createServerClient } from './supabase'
 import { computeNicknames } from './nicknames'
 import type { NicknameAward } from './nicknames'
-import type { Game } from './types'
+import { TRACKED_PLAYERS } from './config'
+import type { Game, Player } from './types'
 
 /** Tag for every cached derivation of the games table. Invalidated on sync. */
 export const GAMES_CACHE_TAG = 'games'
@@ -34,7 +35,6 @@ const GAME_SELECT_LIST = `
     gold_earned,
     cc_score,
     perf_score,
-    contribution_score,
     augment_ids,
     players (
       puuid,
@@ -64,7 +64,6 @@ const GAME_SELECT_DETAIL = `
     gold_earned,
     cc_score,
     perf_score,
-    contribution_score,
     augment_ids,
     players (
       id,
@@ -82,8 +81,7 @@ export function clampGameLimit(raw: string | null): number {
   return Math.max(1, Math.min(DEFAULT_GAME_LIMIT, parsed))
 }
 
-/** Most recent games with their tracked-player results, newest first. */
-export async function fetchGames(limit: number = DEFAULT_GAME_LIMIT): Promise<Game[]> {
+async function queryGames(limit: number): Promise<Game[]> {
   const supabase = createServerClient()
   const { data, error } = await supabase
     .from('games')
@@ -94,6 +92,38 @@ export async function fetchGames(limit: number = DEFAULT_GAME_LIMIT): Promise<Ga
   if (error) throw error
   return (data ?? []) as unknown as Game[]
 }
+
+/**
+ * Most recent games with their tracked-player results, newest first.
+ *
+ * 대시보드는 요청마다 최대 500경기를 중첩 조인으로 읽었다. 이 목록은 동기화
+ * 때만 바뀌므로 GAMES_CACHE_TAG 로 캐시하고, 동기화 경로가 태그를 무효화한다.
+ */
+export const fetchGames = unstable_cache(
+  (limit: number = DEFAULT_GAME_LIMIT) => queryGames(limit),
+  ['games-list'],
+  { tags: [GAMES_CACHE_TAG] },
+)
+
+/** 추적 4인 행. 경기와 같은 시점에만 바뀌므로 같은 태그로 캐시한다. */
+export const fetchPlayers = unstable_cache(
+  async (): Promise<Player[]> => {
+    const supabase = createServerClient()
+    const { data, error } = await supabase
+      .from('players')
+      .select('id, puuid, game_name, tag_line')
+    if (error) throw error
+    const rows = (data ?? []) as Player[]
+    // 설정된 순서 그대로 보여준다.
+    return [...rows].sort(
+      (a, b) =>
+        TRACKED_PLAYERS.findIndex((p) => p.puuid === a.puuid) -
+        TRACKED_PLAYERS.findIndex((p) => p.puuid === b.puuid),
+    )
+  },
+  ['players-list'],
+  { tags: [GAMES_CACHE_TAG] },
+)
 
 export async function fetchGameById(id: string): Promise<Game | null> {
   const supabase = createServerClient()
