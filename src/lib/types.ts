@@ -27,7 +27,6 @@ export interface GameResult {
   gold_earned: number
   cc_score: number
   perf_score: number
-  contribution_score: number
   augment_ids: number[]
   item_ids?: number[]
   players: GameResultPlayer | null
@@ -50,7 +49,6 @@ export interface ChampionReport {
   wins: number
   win_rate: number
   avg_perf_score: number
-  avg_contribution_score: number
   avg_kills: number
   avg_deaths: number
   avg_assists: number

@@ -1,6 +1,6 @@
 export interface GameCommentaryResult {
   name: string
-  contribution_score: number
+  perf_score: number
   damage_dealt: number
   damage_taken: number
   healing: number
@@ -28,9 +28,9 @@ export function getGameCommentary(game: GameCommentaryGame): string {
   const seed = String(game.game_id ?? results.map(result => result.name).join('|'))
 
   if (!game.our_team_win) {
-    const least = [...results].sort((a, b) => a.contribution_score - b.contribution_score)[0]
-    const best = [...results].sort((a, b) => b.contribution_score - a.contribution_score)[0]
-    const gap = best.contribution_score - least.contribution_score
+    const least = [...results].sort((a, b) => a.perf_score - b.perf_score)[0]
+    const best = [...results].sort((a, b) => b.perf_score - a.perf_score)[0]
+    const gap = best.perf_score - least.perf_score
     const lossLines = gap >= 25
       ? [
           `${best.name}님은 분전했는데 ${least.name}님 쪽에서 조금 아쉬웠어요. 다음 판 반등 가시죠!`,
@@ -45,7 +45,7 @@ export function getGameCommentary(game: GameCommentaryGame): string {
     return pickVariant(lossLines, seed)
   }
 
-  const mvp = [...results].sort((a, b) => b.contribution_score - a.contribution_score)[0]
+  const mvp = [...results].sort((a, b) => b.perf_score - a.perf_score)[0]
   const max = (key: keyof Pick<GameCommentaryResult, 'damage_dealt' | 'damage_taken' | 'healing' | 'assists' | 'cc_score'>) =>
     Math.max(...results.map(result => result[key]))
   const contributions: { key: ContributionKey; label: string }[] = [

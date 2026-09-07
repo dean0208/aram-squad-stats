@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { fetchGameById } from '@/lib/games'
 import { DDRAGON_VERSION, getPlayerDisplayName } from '@/lib/config'
 import { fetchChampionNames, getChampionDisplayName } from '@/lib/championNames'
-import { toDisplayContributionScore } from '@/lib/displayScore'
+import { toDisplayScore } from '@/lib/displayScore'
 import type { GameResult } from '@/lib/types'
 import { calculateMedals } from '@/lib/medals'
 
@@ -70,7 +70,7 @@ export default async function GameDetailPage({
 
   // Sort by contribution score descending to find MVP
   const sortedResults = [...typedGame.game_results].sort(
-    (a, b) => b.contribution_score - a.contribution_score,
+    (a, b) => b.perf_score - a.perf_score,
   )
   const mvpId = sortedResults[0]?.id
 
@@ -140,8 +140,7 @@ export default async function GameDetailPage({
                 <th className="px-4 py-3 text-right">Damage</th>
                 <th className="px-4 py-3 text-right">Taken</th>
                 <th className="px-4 py-3 text-right">Healing</th>
-                <th className="px-4 py-3 text-right">Perf</th>
-                <th className="px-4 py-3 text-right">Contribution</th>
+                <th className="px-4 py-3 text-right">기여도</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
@@ -202,15 +201,9 @@ export default async function GameDetailPage({
                   </td>
                   <td className="px-4 py-4 text-right">
                     <div className="text-sm font-bold text-blue-400">
-                      {toDisplayContributionScore(result.perf_score)}
+                      {toDisplayScore(result.perf_score)}
                     </div>
-                    <ScoreBar value={toDisplayContributionScore(result.perf_score)} />
-                  </td>
-                  <td className="px-4 py-4 text-right">
-                    <div className="text-sm font-bold text-purple-400">
-                      {toDisplayContributionScore(result.contribution_score)}
-                    </div>
-                    <ScoreBar value={toDisplayContributionScore(result.contribution_score)} />
+                    <ScoreBar value={toDisplayScore(result.perf_score)} />
                   </td>
                 </tr>
               ))}

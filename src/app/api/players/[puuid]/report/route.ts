@@ -30,7 +30,6 @@ export async function GET(
         deaths,
         assists,
         perf_score,
-        contribution_score,
         games (
           our_team_win
         )
@@ -49,7 +48,6 @@ export async function GET(
         games: number
         wins: number
         total_perf: number
-        total_contribution: number
         total_kills: number
         total_deaths: number
         total_assists: number
@@ -71,7 +69,6 @@ export async function GET(
           games: 1,
           wins: win ? 1 : 0,
           total_perf: r.perf_score ?? 0,
-          total_contribution: r.contribution_score ?? 0,
           total_kills: r.kills ?? 0,
           total_deaths: r.deaths ?? 0,
           total_assists: r.assists ?? 0,
@@ -81,7 +78,6 @@ export async function GET(
         existing.games++
         if (win) existing.wins++
         existing.total_perf += r.perf_score ?? 0
-        existing.total_contribution += r.contribution_score ?? 0
         existing.total_kills += r.kills ?? 0
         existing.total_deaths += r.deaths ?? 0
         existing.total_assists += r.assists ?? 0
@@ -97,8 +93,6 @@ export async function GET(
         wins: c.wins,
         win_rate: c.games > 0 ? Math.round((c.wins / c.games) * 100) : 0,
         avg_perf_score: c.games > 0 ? Math.round((c.total_perf / c.games) * 10) / 10 : 0,
-        avg_contribution_score:
-          c.games > 0 ? Math.round((c.total_contribution / c.games) * 10) / 10 : 0,
         avg_kills: c.games > 0 ? Math.round((c.total_kills / c.games) * 10) / 10 : 0,
         avg_deaths: c.games > 0 ? Math.round((c.total_deaths / c.games) * 10) / 10 : 0,
         avg_assists: c.games > 0 ? Math.round((c.total_assists / c.games) * 10) / 10 : 0,

@@ -5,7 +5,7 @@ import { getGameCommentary } from '../src/lib/gameCommentary.ts'
 
 const result = (name, stats) => ({
   name,
-  contribution_score: stats.contribution ?? 50,
+  perf_score: stats.contribution ?? 50,
   damage_dealt: stats.damage ?? 0,
   damage_taken: stats.taken ?? 0,
   healing: stats.healing ?? 0,
