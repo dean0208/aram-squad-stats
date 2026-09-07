@@ -1,4 +1,4 @@
-import { RIOT_BASE, TRACKED_PUUIDS, TRACKED_PLAYERS, DATA_START_DATE } from './config'
+import { RIOT_BASE, TRACKED_PUUIDS, TRACKED_PLAYERS, DATA_START_DATE, SUPPORTED_QUEUES } from './config'
 import { createServerClient } from './supabase'
 import { calculateFairScores, type ScoreOptions } from './scoring'
 import { fetchChampionRoles } from './championRoles'
@@ -21,6 +21,8 @@ export interface RiotParticipant {
   totalDamageDealtToChampions: number
   totalDamageTaken: number
   totalHeal: number
+  /** 팀원에게 준 힐만. 자힐이 빠져 있다. 구버전 응답에는 없다. */
+  totalHealsOnTeammates?: number
   totalTimeCCDealt: number
   /** Match-V5 의 대안 필드명. 일부 응답은 이쪽만 채워 준다. */
   timeCCingOthers?: number
@@ -57,9 +59,6 @@ export interface RiotMatchDetail {
 }
 
 // ─── Riot API Fetchers ────────────────────────────────────────────────────────
-
-// Supported queue IDs: 480 = Swiftplay, 450 = ARAM, 2400 = ARAM Mayhem (증강)
-const SUPPORTED_QUEUES = [480, 450, 2400]
 
 export async function fetchRecentMatches(puuid: string, count = 20): Promise<string[]> {
   // Fetch without queue filter then dedupe — single call is simpler than multiple
@@ -98,17 +97,6 @@ export function calcTeamPerfScores(
   return calculateFairScores(trackedParticipants, options)
 }
 
-/**
- * Keep the existing ingestion API name, but store the actual score rather
- * than converting the tracked-player ranking into 100/67/33/0.
- */
-export function calcContributionScore(
-  puuid: string,
-  trackedParticipants: { puuid: string; perf: number }[],
-): number {
-  return trackedParticipants.find((p) => p.puuid === puuid)?.perf ?? 0
-}
-
 // ─── Augment extraction helper ────────────────────────────────────────────────
 
 function extractAugmentIds(p: RiotParticipant): number[] {
@@ -130,6 +118,15 @@ function resolveCcDealt(p: RiotParticipant): number {
   return p.totalTimeCCDealt || p.totalTimeCrowdControlDealt || p.timeCCingOthers || 0
 }
 
+/**
+ * 팀원에게 준 힐. 응답에 없으면 undefined 를 돌려주고, 점수 쪽에서 totalHeal
+ * 로 폴백한다. 0 과 undefined 는 다르다 — 0 은 "아무도 안 살렸다" 이고
+ * undefined 는 "이 응답은 알려주지 않는다" 이다.
+ */
+function resolveHealsOnTeammates(p: RiotParticipant): number | undefined {
+  return typeof p.totalHealsOnTeammates === 'number' ? p.totalHealsOnTeammates : undefined
+}
+
 function extractItemIds(p: RiotParticipant): number[] {
   return [p.item0, p.item1, p.item2, p.item3, p.item4, p.item5]
     .filter((id): id is number => typeof id === 'number' && id > 0)
@@ -141,17 +138,15 @@ export async function syncNewGames(): Promise<{ synced: number; skipped: number 
   const supabase = createServerClient()
   const championRoles = await fetchChampionRoles()
 
-  // Ensure players exist in DB
-  for (const player of TRACKED_PLAYERS) {
-    await supabase.from('players').upsert(
-      {
-        puuid: player.puuid,
-        game_name: player.gameName,
-        tag_line: player.tagLine,
-      },
-      { onConflict: 'puuid' },
-    )
-  }
+  // Ensure players exist in DB. 한 번의 upsert 로 4행을 함께 보낸다.
+  await supabase.from('players').upsert(
+    TRACKED_PLAYERS.map((player) => ({
+      puuid: player.puuid,
+      game_name: player.gameName,
+      tag_line: player.tagLine,
+    })),
+    { onConflict: 'puuid' },
+  )
 
   // Fetch player rows to get UUIDs
   const { data: playerRows } = await supabase
@@ -263,33 +258,40 @@ export async function syncNewGames(): Promise<{ synced: number; skipped: number 
         perf: matchScores.get(p.puuid) ?? 0,
       }))
 
-      // Insert game results for each tracked player
-      for (const p of trackedInMatch) {
-        const playerId = playerIdMap.get(p.puuid)
-        if (!playerId) continue
-
-        const perf = perfScores.find((ps) => ps.puuid === p.puuid)?.perf ?? 0
-        const contribution = calcContributionScore(p.puuid, perfScores)
-        const augmentIds = extractAugmentIds(p)
-
-        await supabase.from('game_results').insert({
-          game_id: gameRow.id,
-          player_id: playerId,
-          champion_id: p.championId,
-          champion_name: p.championName,
-          kills: p.kills,
-          deaths: p.deaths,
-          assists: p.assists,
-          damage_dealt: p.totalDamageDealtToChampions,
-          damage_taken: p.totalDamageTaken,
-          healing: p.totalHeal,
-          gold_earned: p.goldEarned,
-          cc_score: p.totalTimeCCDealt,
-          augment_ids: augmentIds,
-          item_ids: extractItemIds(p),
-          perf_score: Math.round(perf * 10) / 10,
-          contribution_score: contribution,
+      // 4인 결과를 한 번의 insert 로 보낸다. 행마다 왕복하면 경기당 4회가 된다.
+      const resultRows = trackedInMatch
+        .map((p) => {
+          const playerId = playerIdMap.get(p.puuid)
+          if (!playerId) return null
+          const perf = perfScores.find((ps) => ps.puuid === p.puuid)?.perf ?? 0
+          return {
+            game_id: gameRow.id,
+            player_id: playerId,
+            champion_id: p.championId,
+            champion_name: p.championName,
+            kills: p.kills,
+            deaths: p.deaths,
+            assists: p.assists,
+            damage_dealt: p.totalDamageDealtToChampions,
+            damage_taken: p.totalDamageTaken,
+            healing: p.totalHeal,
+            heals_on_teammates: resolveHealsOnTeammates(p) ?? null,
+            gold_earned: p.goldEarned,
+            // allParticipants 에서 이미 리졸버를 거친 값이다.
+            cc_score: p.totalTimeCCDealt,
+            augment_ids: extractAugmentIds(p),
+            item_ids: extractItemIds(p),
+            perf_score: Math.round(perf * 10) / 10,
+          }
         })
+        .filter((row): row is NonNullable<typeof row> => row !== null)
+
+      const { error: resultsError } = await supabase.from('game_results').insert(resultRows)
+      if (resultsError) {
+        // 결과 없는 게임 행이 남으면 다음 동기화가 "이미 저장됨"으로 건너뛴다.
+        console.error(`Failed to insert results for ${matchId}:`, resultsError)
+        await supabase.from('games').delete().eq('id', gameRow.id)
+        continue
       }
 
       synced++

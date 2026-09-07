@@ -17,6 +17,7 @@ interface StoredResult {
   damage_dealt: number
   damage_taken: number
   healing: number
+  heals_on_teammates: number | null
   cc_score: number
   players: { puuid: string } | null
 }
@@ -28,7 +29,6 @@ interface ResultUpdate {
   champion_id: number
   champion_name: string
   perf_score: number
-  contribution_score: number
 }
 
 /** DDragon 에 없던 시절 저장돼 `Champion800` 형태로 남은 이름. */
@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
           damage_dealt,
           damage_taken,
           healing,
+          heals_on_teammates,
           cc_score,
           players ( puuid )
         )
@@ -107,6 +108,7 @@ export async function POST(request: NextRequest) {
           totalDamageDealtToChampions: result.damage_dealt,
           totalDamageTaken: result.damage_taken,
           totalHeal: result.healing,
+          totalHealsOnTeammates: result.heals_on_teammates ?? undefined,
           totalTimeCCDealt: result.cc_score,
         }))
 
@@ -126,7 +128,6 @@ export async function POST(request: NextRequest) {
           champion_id: result.champion_id,
           champion_name: result.champion_name,
           perf_score: score,
-          contribution_score: score,
         })
       }
     }
