@@ -1,7 +1,7 @@
 # ARAM Squad Stats — LCU 에이전트 (Windows)
 
 롤 클라이언트(LCU)에서 ARAM Mayhem(`queueId 2400`) 전적을 읽어
-`https://aram-squad-stats.vercel.app/api/lcu-sync` 로 전송하는 로컬 스크립트입니다.
+`https://aram4.vercel.app/api/lcu-sync` 로 전송하는 로컬 스크립트입니다.
 
 추적 대상 4명이 **모두 포함된 경기만** 전송하며, 4명 중 아무나 실행하면 됩니다.
 

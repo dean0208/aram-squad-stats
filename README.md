@@ -175,7 +175,7 @@ node scripts/check-recalibration.mjs
 점수 모델 상수를 바꾼 뒤, 또는 이름이 안 풀린 챔피언을 복구하려면:
 
 ```bash
-curl -X POST https://aram-squad-stats.vercel.app/api/recalculate-scores \
+curl -X POST https://aram4.vercel.app/api/recalculate-scores \
   -H "x-lcu-sync-secret: <REPLACE_WITH_SECRET_MANAGER>"
 ```
 
@@ -260,12 +260,14 @@ Riot Match-V5 수집과 매시간 GitHub Actions 워크플로는 사용하지 �
 
 ## 배포
 
-**`git push` 만으로는 배포되지 않는다.** Vercel 프로젝트가 Git 연동되어 있으면
-푸시로 배포되고, 아니면 Mac 에서 아래를 실행해야 한다.
+- 서비스 주소: https://aram4.vercel.app
+- GitHub: `heoyh94/aram-squad-stats`
+- Vercel: `heoyh94@gmail.com`의 Hobby 팀 `heoyh94`
+- Supabase: 개인 계정 조직의 기존 프로젝트를 그대로 사용한다.
 
-```bash
-npx vercel --prod
-```
+`main`에 푸시하면 개인 Vercel 프로젝트로 자동 배포된다.
+필수 환경변수는 Supabase 설정 3개와 `LCU_SYNC_SECRET`이며 `.env.example`을 참고한다.
+Windows LCU 에이전트도 위 서비스 주소로 전송한다.
 
 배포 후 점수 모델 상수를 바꿨다면 재계산도 함께 실행한다.
 

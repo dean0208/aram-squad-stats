@@ -31,8 +31,8 @@ except ImportError as exc:
 
 # ─── 설정 ────────────────────────────────────────────────────────────────────
 
-SERVER_URL      = "https://aram-squad-stats.vercel.app/api/lcu-sync"
-LAST_SYNC_URL   = "https://aram-squad-stats.vercel.app/api/last-sync"
+SERVER_URL      = "https://aram4.vercel.app/api/lcu-sync"
+LAST_SYNC_URL   = "https://aram4.vercel.app/api/last-sync"
 LCU_SECRET  = os.environ.get("LCU_SYNC_SECRET", "")  # 환경변수 or 직접 입력
 QUEUE_ID    = 2400   # ARAM Mayhem
 

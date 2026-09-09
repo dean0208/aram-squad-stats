@@ -35,7 +35,7 @@ npm run build
 그대로 보인다. 배포 후:
 
 ```bash
-curl -X POST https://aram-squad-stats.vercel.app/api/recalculate-scores \
+curl -X POST https://aram4.vercel.app/api/recalculate-scores \
   -H "x-lcu-sync-secret: <시크릿>"
 ```
 
