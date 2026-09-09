@@ -262,7 +262,7 @@ Riot Match-V5 수집과 매시간 GitHub Actions 워크플로는 사용하지 �
 
 - 서비스 주소: https://aram4.vercel.app
 - GitHub: `heoyh94/aram-squad-stats`
-- Vercel: `heoyh94@gmail.com`의 Hobby 팀 `heoyh94`
+- Vercel: [개인 프로젝트](https://vercel.com/heoyh94/aram-squad-stats) — `heoyh94@gmail.com`의 Hobby 팀 `heoyh94`
 - Supabase: 개인 계정 조직의 기존 프로젝트를 그대로 사용한다.
 
 `main`에 푸시하면 개인 Vercel 프로젝트로 자동 배포된다.
