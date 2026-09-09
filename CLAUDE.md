@@ -51,7 +51,7 @@ curl -X POST https://aram-squad-stats.vercel.app/api/recalculate-scores \
 
 **Match-V5 는 ARAM Mayhem(큐 2400)을 싣지 않는다.** `ids?queue=2400` 이 200 인데 0건이고 매치 상세는 403 이다. 키 등급 문제가 아니라서 **프로덕션 키를 받아도 안 열린다.** 이것이 LCU 에이전트가 존재하는 이유다 (커밋 58ec5e1 → d14f17a → a53858c). 같은 길을 다시 파지 말 것.
 
-**따라서 과거 백필은 불가능하고, 팀원 힐(자힐 분리)·팀원 실드·하드CC 는 이 모드에서 영구히 측정 불가다.** LCU 는 구 match-v4 포맷이라 `challenges` 가 없고, `damageSelfMitigated` 와 CC 지속시간만 온다. 매시간 워크플로가 success 로 찍히는 건 `synced: 0` 도 성공이기 때문이니 초록불을 수집 성공으로 읽지 말 것.
+**따라서 과거 백필은 불가능하고, 팀원 힐(자힐 분리)·팀원 실드·하드CC 는 이 모드에서 영구히 측정 불가다.** LCU 는 구 match-v4 포맷이라 `challenges` 가 없고, `damageSelfMitigated` 와 CC 지속시간만 온다. 기존 매시간 Riot 동기화 워크플로는 2026-09-09 개인 계정 이관 중 제거했다. 현재 수집은 Windows LCU 에이전트만 사용한다.
 
 **힐 축은 `healingForScore()` 를 거쳐야 한다.** `healing` 은 자힐이 섞인 Riot `totalHeal` 이고, 팀원에게 준 힐만 담긴 `heals_on_teammates` 가 있으면 그걸 쓴다. 옛 경기는 `NULL` 이라 `healing` 으로 폴백하며 백필은 불가능하다. 새 기준 경기가 60판쯤 쌓이면 `ROLE_CALIBRATION` 을 다시 맞춰야 한다 (CC 와 같은 방아쇠).
 
@@ -69,13 +69,13 @@ curl -X POST https://aram-squad-stats.vercel.app/api/recalculate-scores \
   발급해야 한다.
 - `LCU_SYNC_SECRET` 은 Windows PC 의 OS 환경변수에도 있다(에이전트가 쓴다).
   그래서 그 PC 에서는 `.env.local` 에 안 넣어도 Next 가 읽는다.
-- `SYNC_SECRET` 은 **GitHub Actions 시크릿과 Vercel 환경변수 양쪽이 같아야** 한다.
-  한쪽만 바꾸면 매시간 동기화가 401 로 죽는다.
+- `RIOT_API_KEY`와 `SYNC_SECRET`은 현행 LCU 전용 운영에 필요하지 않다.
+  `/api/sync`는 410으로 사용 중단을 알리고, Riot 예약 수집 워크플로는 제거했다.
 
 로컬에서 대시보드만 띄우려면 `.env.local` 에 세 개면 된다:
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
-`RIOT_API_KEY` 는 Riot 수집을 테스트할 때만 필요하고, `RIOT_ROUTING`/`RIOT_REGION`
-은 `config.ts` 에 상수로 있어 환경변수로 읽지 않는다.
+Vercel에는 위 세 개와 `LCU_SYNC_SECRET`을 설정한다. `RIOT_ROUTING`/`RIOT_REGION`
+은 `config.ts`의 상수이며 환경변수로 읽지 않는다.
 
 ## 알려진 미해결
 
@@ -91,9 +91,8 @@ curl -X POST https://aram-squad-stats.vercel.app/api/recalculate-scores \
   제대로 주므로, `/api/sync` 에 기존 경기 갱신 로직을 넣으면 소급 복구는 가능하다.
 - **서포터 역할 보정이 없다.** 표본이 3건뿐이라 1.0 으로 뒀다. 서포터 픽이 쌓이면
   `ROLE_CALIBRATION` 을 다시 계산해야 한다(역할별 `relative` 평균).
-- **대시보드 동기화 버튼은 진짜 인증이 아니다.** 이 앱에는 로그인이 없다. 서버
-  액션이라 고정 URL 은 없지만 호출 자체를 막지는 못한다. 스케줄러 경로
-  (`/api/sync`)만 시크릿으로 잠겨 있다.
+- **대시보드의 기록 새로고침은 수집을 실행하지 않는다.** 서버 액션은 Supabase
+  조회 캐시만 갱신한다. 새 경기는 Windows LCU 에이전트로 전송한다.
 - `DDRAGON_VERSION`(`config.ts`)은 이미지 URL 용 고정값이다. 이름·역할 조회는
   `lib/ddragon.ts` 가 최신 버전을 런타임에 해석한다. 신규 챔피언 아이콘이 깨지면
   이 상수를 올린다.
