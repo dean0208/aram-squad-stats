@@ -135,8 +135,7 @@ export default function RecordRoom({
                 </span>
                 <h3>{contest.label}</h3>
                 <p className="muted text-xs">
-                  {contest.average ? '평균 기여도' : `누적 ${contest.unit}`} ·
-                  공동 1위는 함께 표시
+                  {contest.average ? '평균 기여도' : `누적 ${contest.unit}`}
                 </p>
                 <p className="contest-winner">
                   {tied

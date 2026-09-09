@@ -67,13 +67,13 @@ export default function DailyReceipt({
       if (!ctx)
         throw new Error('이미지를 만들 수 없어요. 링크 복사를 이용해 주세요.')
       const fontFamily = getComputedStyle(document.body).fontFamily
-      ctx.fillStyle = '#e9ede2'
+      ctx.fillStyle = '#edf1f7'
       ctx.fillRect(0, 0, 720, 1100)
-      ctx.fillStyle = '#fcfcf7'
+      ctx.fillStyle = '#ffffff'
       ctx.fillRect(32, 32, 656, 1036)
-      ctx.fillStyle = '#202e29'
+      ctx.fillStyle = '#182337'
       ctx.fillRect(32, 32, 656, 188)
-      ctx.fillStyle = '#d8f58a'
+      ctx.fillStyle = '#c7dcff'
       ctx.fillRect(616, 67, 14, 14)
       ctx.fillRect(636, 67, 14, 14)
       ctx.fillRect(616, 87, 14, 14)
@@ -83,7 +83,7 @@ export default function DailyReceipt({
         x: number,
         y: number,
         size: number,
-        color = '#202e29',
+        color = '#182337',
         weight = 500,
       ) {
         ctx!.font = `${weight} ${size}px ${fontFamily}`
@@ -91,7 +91,7 @@ export default function DailyReceipt({
         ctx!.fillText(value, x, y, 592)
       }
       function rule(y: number) {
-        ctx!.strokeStyle = '#bec9b6'
+        ctx!.strokeStyle = '#c5d0e2'
         ctx!.setLineDash([5, 7])
         ctx!.beginPath()
         ctx!.moveTo(64, y)
@@ -99,15 +99,15 @@ export default function DailyReceipt({
         ctx!.stroke()
         ctx!.setLineDash([])
       }
-      text('마 좀 치나?', 64, 100, 38, '#d8f58a', 800)
-      text('우리의 나락 영수증', 64, 150, 22, '#fcfcf7', 650)
-      text(`${displayDate(date)} · KST`, 64, 188, 18, '#c0cbbf')
+      text('마 좀 치나?', 64, 100, 38, '#c7dcff', 800)
+      text('우리의 나락 영수증', 64, 150, 22, '#ffffff', 650)
+      text(`${displayDate(date)} · KST`, 64, 188, 18, '#c1cfe3')
       text(
         `${games.length}전  ${wins}승 ${losses}패`,
         64,
         300,
         48,
-        '#202e29',
+        '#182337',
         800,
       )
       text(
@@ -115,32 +115,32 @@ export default function DailyReceipt({
         64,
         344,
         18,
-        '#647069',
+        '#5e6b7d',
       )
-      text(line, 64, 396, 24, '#426131', 700)
+      text(line, 64, 396, 24, '#315cce', 700)
       rule(428)
-      text('이날 최고의 한 판', 64, 472, 17, '#647069')
-      text(best, 64, 508, 28, '#426131', 750)
+      text('이날 최고의 한 판', 64, 472, 17, '#5e6b7d')
+      text(best, 64, 508, 28, '#315cce', 750)
       text(`평소보다 잘한 사람  ${rise}`, 64, 555, 20, '#16734d')
       text(`이날의 걸배이  ${anchor}`, 64, 595, 20, '#9f3c50')
       rule(629)
-      text('함께한 사람들', 64, 669, 20, '#202e29', 700)
+      text('함께한 사람들', 64, 669, 20, '#182337', 700)
       ;[...counts.values()].forEach((player, index) => {
         const y = 716 + index * 58
-        text(player.name, 64, y, 22, '#202e29', 700)
+        text(player.name, 64, y, 22, '#182337', 700)
         text(
           `평균 ${Math.round(player.sum / player.count)}점 · 메달 ${player.medals}개`,
           300,
           y,
           19,
-          '#647069',
+          '#5e6b7d',
         )
       })
       rule(944)
-      text('기록은 남고, 다음 판은 온다.', 64, 984, 19, '#647069')
-      text(`${window.location.host}/?date=${date}`, 64, 1024, 17, '#426131')
+      text('기록은 남고, 다음 판은 온다.', 64, 984, 19, '#5e6b7d')
+      text(`${window.location.host}/?date=${date}`, 64, 1024, 17, '#315cce')
       // Perforated ticket edges are decorative; all numbers above are real records.
-      ctx.fillStyle = '#e9ede2'
+      ctx.fillStyle = '#edf1f7'
       for (let x = 40; x < 688; x += 24) {
         ctx.beginPath()
         ctx.arc(x, 1068, 6, 0, Math.PI * 2)

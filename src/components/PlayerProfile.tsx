@@ -453,8 +453,7 @@ export default function PlayerProfile({
                       <div>
                         <h3>{champion.name}</h3>
                         <p className="muted text-xs">
-                          {report ? `${report.games}경기` : '아직 미도전'} ·{' '}
-                          {report ? '기록 보기' : '새로운 픽'}
+                          {report ? `${report.games}경기` : '아직 미도전'}
                         </p>
                       </div>
                     </div>

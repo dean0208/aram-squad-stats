@@ -49,11 +49,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <i />
                 <i />
               </span>
-              <span>
-                마 좀 치나?<small>ARAM SQUAD CLUB</small>
-              </span>
+              <span>마 좀 치나?</span>
             </Link>
-            <span className="site-caption">네 명의 친구. 하나의 나락.</span>
+            <span className="site-caption">OCE · ARAM MAYHEM</span>
             <Suspense>
               <MobileBottomNav desktop />
             </Suspense>

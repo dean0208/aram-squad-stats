@@ -113,7 +113,7 @@ function MatchCard({
         >
           {game.our_team_win ? '승리' : '패배'}
         </span>
-        <span className="muted text-xs">
+        <span className="match-time muted text-xs">
           {displayDate(game.played_at, true)} ·{' '}
           {duration(game.duration_seconds)}
         </span>
