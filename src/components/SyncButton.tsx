@@ -28,7 +28,7 @@ export default function SyncButton() {
         disabled={loading}
         aria-busy={loading}
         aria-label={loading ? '게임 기록 새로고침 중' : '저장된 게임 기록 새로고침'}
-        className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-800 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+        className="button-secondary"
       >
         {loading ? '⟳ 새로고침 중...' : '⟳ 기록 새로고침'}
       </button>

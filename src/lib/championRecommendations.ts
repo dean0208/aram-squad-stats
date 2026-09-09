@@ -87,10 +87,10 @@ export function recommendChampion(
   const styleNote = STYLE_NOTES[selected.champion.id]
   const tacticalReason = styleNote
     ? `${styleNote} 챔피언이에요.`
-    : `${roleLabel} 중 ${selected.champion.tags.join('·')} 특성을 활용하는 챔피언이에요.`
+    : `${selected.champion.tags.map(tag => ROLE_NAMES[tag] ?? tag).join('·')} 특성을 가진 챔피언이에요.`
   const reason = selected.games > 0
-    ? `${anchorChampion?.name ?? anchor.champion_name}에서 좋은 모습을 보여서 ${selected.champion.name} 추천! ${tacticalReason}`
-    : `${anchorChampion?.name ?? anchor.champion_name}에서 좋은 모습을 보여서, 아직 안 해본 ${roleLabel} ${selected.champion.name} 추천! ${tacticalReason}`
+    ? `${anchorChampion?.name ?? anchor.champion_name}에서 좋은 기록을 남겼네요. ${selected.champion.name}도 뽑을 기회가 생기면 다시 해봐요. ${tacticalReason}`
+    : `${anchorChampion?.name ?? anchor.champion_name}에서 좋은 기록을 남겼네요. 아직 기록이 없는 ${roleLabel} ${selected.champion.name}도 뽑히면 도전! ${tacticalReason}`
 
   return {
     championId: selected.champion.id,

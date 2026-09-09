@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 /** 모달이 저절로 닫히기까지의 시간. */
@@ -19,8 +19,11 @@ const PRELOAD_TIMEOUT_MS = 1500
  * 이미지를 미리 받아 둔다. 성공·실패·시간초과 모두 resolve 한다 —
  * 호출한 쪽은 "이제 띄워도 된다"만 알면 된다.
  */
-export function preloadImage(url: string, timeoutMs = PRELOAD_TIMEOUT_MS): Promise<void> {
-  return new Promise(resolve => {
+export function preloadImage(
+  url: string,
+  timeoutMs = PRELOAD_TIMEOUT_MS,
+): Promise<void> {
+  return new Promise((resolve) => {
     const image = new Image()
     const done = () => {
       window.clearTimeout(timer)
@@ -34,13 +37,25 @@ export function preloadImage(url: string, timeoutMs = PRELOAD_TIMEOUT_MS): Promi
 }
 
 /** 여러 장을 한꺼번에. 없는 URL 은 건너뛴다. */
-export function preloadImages(urls: (string | null)[], timeoutMs = PRELOAD_TIMEOUT_MS): Promise<void> {
+export function preloadImages(
+  urls: (string | null)[],
+  timeoutMs = PRELOAD_TIMEOUT_MS,
+): Promise<void> {
   const real = urls.filter((url): url is string => Boolean(url))
   if (!real.length) return Promise.resolve()
-  return Promise.all(real.map(url => preloadImage(url, timeoutMs))).then(() => undefined)
+  return Promise.all(real.map((url) => preloadImage(url, timeoutMs))).then(
+    () => undefined,
+  )
 }
 
-const CONFETTI_COLORS = ['#fbbf24', '#f472b6', '#60a5fa', '#34d399', '#c084fc', '#fb7185']
+const CONFETTI_COLORS = [
+  '#fbbf24',
+  '#f472b6',
+  '#60a5fa',
+  '#34d399',
+  '#c084fc',
+  '#fb7185',
+]
 const CONFETTI_COUNT = 40
 const FLY_COUNT = 9
 
@@ -58,6 +73,8 @@ export interface AwardSubject {
 
 export interface CelebrationProps {
   onClose: () => void
+  autoClose?: boolean
+  dateLabel?: string
   /** 갱신된 MVP. 변동 없으면 null */
   mvp: AwardSubject | null
   /** 갱신된 걸배이. 변동 없으면 null */
@@ -106,11 +123,19 @@ function makeFlies(): Fly[] {
 }
 
 /** 사진이 없을 때 대신 세우는 이름 첫 글자. */
-function PhotoFallback({ name, tone }: { name: string; tone: 'gold' | 'grime' }) {
+function PhotoFallback({
+  name,
+  tone,
+}: {
+  name: string
+  tone: 'gold' | 'grime'
+}) {
   return (
     <div
       className={`flex h-full w-full items-center justify-center text-6xl font-black ${
-        tone === 'gold' ? 'bg-amber-900/60 text-amber-200' : 'bg-stone-800/70 text-stone-400'
+        tone === 'gold'
+          ? 'bg-amber-900/60 text-amber-200'
+          : 'bg-stone-800/70 text-stone-400'
       }`}
     >
       {name.slice(0, 1)}
@@ -119,12 +144,19 @@ function PhotoFallback({ name, tone }: { name: string; tone: 'gold' | 'grime' })
 }
 
 function AwardPhoto({
-  subject, tone, sizeClass,
-}: { subject: AwardSubject; tone: 'gold' | 'grime'; sizeClass: string }) {
+  subject,
+  tone,
+  sizeClass,
+}: {
+  subject: AwardSubject
+  tone: 'gold' | 'grime'
+  sizeClass: string
+}) {
   const [failed, setFailed] = useState(false)
-  const ring = tone === 'gold'
-    ? 'border-amber-300 shadow-[0_0_40px_rgba(251,191,36,0.55)]'
-    : 'border-stone-600 shadow-[0_0_28px_rgba(0,0,0,0.6)]'
+  const ring =
+    tone === 'gold'
+      ? 'border-amber-300 shadow-[0_0_40px_rgba(251,191,36,0.55)]'
+      : 'border-stone-600 shadow-[0_0_28px_rgba(0,0,0,0.6)]'
 
   return (
     <div
@@ -152,8 +184,11 @@ function MvpPanel({ subject, solo }: { subject: AwardSubject; solo: boolean }) {
   const [confetti] = useState<ConfettiPiece[]>(makeConfetti)
 
   return (
-    <div className="celebration-panel flex flex-1 flex-col items-center justify-center gap-2 bg-gradient-to-b from-amber-950 via-yellow-950 to-amber-950 px-4">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div className="celebration-panel celebration-gold flex flex-1 flex-col items-center justify-center gap-2 px-4">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      >
         {confetti.map((piece, index) => (
           <span
             key={index}
@@ -171,13 +206,19 @@ function MvpPanel({ subject, solo }: { subject: AwardSubject; solo: boolean }) {
       </div>
 
       <div className="mvp-celebration-card relative flex flex-col items-center gap-2">
-        <div className={solo ? 'text-5xl' : 'text-3xl'} aria-hidden="true">👑</div>
-        <div className="text-xs font-semibold uppercase tracking-[0.25em] text-amber-400">오늘의 MVP</div>
+        <div className={solo ? 'text-5xl' : 'text-3xl'} aria-hidden="true">
+          👑
+        </div>
+        <div className="text-xs font-semibold uppercase tracking-[0.25em] text-amber-400">
+          이날 최고의 한 판
+        </div>
 
         <AwardPhoto
           subject={subject}
           tone="gold"
-          sizeClass={solo ? 'h-48 w-48 sm:h-64 sm:w-64' : 'h-24 w-24 sm:h-40 sm:w-40'}
+          sizeClass={
+            solo ? 'h-48 w-48 sm:h-64 sm:w-64' : 'h-24 w-24 sm:h-40 sm:w-40'
+          }
         />
 
         <div
@@ -187,8 +228,14 @@ function MvpPanel({ subject, solo }: { subject: AwardSubject; solo: boolean }) {
         >
           {subject.playerName}
         </div>
-        {subject.detail && <div className="text-sm text-amber-300">{subject.detail}</div>}
-        <div className={`font-black text-amber-300 ${solo ? 'text-5xl' : 'text-3xl'}`}>{subject.headline}</div>
+        {subject.detail && (
+          <div className="text-sm text-amber-300">{subject.detail}</div>
+        )}
+        <div
+          className={`font-black text-amber-300 ${solo ? 'text-5xl' : 'text-3xl'}`}
+        >
+          {subject.headline}
+        </div>
         <div className="text-xs text-amber-500">{subject.caption}</div>
       </div>
     </div>
@@ -196,12 +243,21 @@ function MvpPanel({ subject, solo }: { subject: AwardSubject; solo: boolean }) {
 }
 
 /** 아래쪽(또는 단독) 칸: 파리 날리는 반대 연출. */
-function AnchorPanel({ subject, solo }: { subject: AwardSubject; solo: boolean }) {
+function AnchorPanel({
+  subject,
+  solo,
+}: {
+  subject: AwardSubject
+  solo: boolean
+}) {
   const [flies] = useState<Fly[]>(makeFlies)
 
   return (
-    <div className="celebration-panel flex flex-1 flex-col items-center justify-center gap-2 bg-gradient-to-b from-stone-900 via-neutral-900 to-stone-950 px-4">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div className="celebration-panel celebration-grime flex flex-1 flex-col items-center justify-center gap-2 px-4">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      >
         {flies.map((fly, index) => (
           <span
             key={index}
@@ -221,13 +277,19 @@ function AnchorPanel({ subject, solo }: { subject: AwardSubject; solo: boolean }
       </div>
 
       <div className="celebration-loser-card relative flex flex-col items-center gap-2">
-        <div className={solo ? 'text-5xl' : 'text-3xl'} aria-hidden="true">🧊</div>
-        <div className="text-xs font-semibold uppercase tracking-[0.25em] text-stone-500">오늘의 걸배이</div>
+        <div className={solo ? 'text-5xl' : 'text-3xl'} aria-hidden="true">
+          🧊
+        </div>
+        <div className="text-xs font-semibold uppercase tracking-[0.25em] text-stone-300">
+          이날의 걸배이
+        </div>
 
         <AwardPhoto
           subject={subject}
           tone="grime"
-          sizeClass={solo ? 'h-48 w-48 sm:h-64 sm:w-64' : 'h-24 w-24 sm:h-40 sm:w-40'}
+          sizeClass={
+            solo ? 'h-48 w-48 sm:h-64 sm:w-64' : 'h-24 w-24 sm:h-40 sm:w-40'
+          }
         />
 
         <div
@@ -237,8 +299,14 @@ function AnchorPanel({ subject, solo }: { subject: AwardSubject; solo: boolean }
         >
           {subject.playerName}
         </div>
-        {subject.detail && <div className="text-sm text-stone-400">{subject.detail}</div>}
-        <div className={`font-black text-stone-300 ${solo ? 'text-5xl' : 'text-3xl'}`}>{subject.headline}</div>
+        {subject.detail && (
+          <div className="text-sm text-stone-400">{subject.detail}</div>
+        )}
+        <div
+          className={`font-black text-stone-300 ${solo ? 'text-5xl' : 'text-3xl'}`}
+        >
+          {subject.headline}
+        </div>
         <div className="text-xs text-stone-500">{subject.caption}</div>
       </div>
     </div>
@@ -254,10 +322,21 @@ function AnchorPanel({ subject, solo }: { subject: AwardSubject; solo: boolean }
  * 열림 여부를 prop 으로 들고 있으면 조각 배치와 이미지 실패 상태를 매번
  * 되돌려야 해서, 마운트 자체를 신호로 쓴다.
  */
-export default function MvpCelebration({ onClose, mvp, anchor }: CelebrationProps) {
+export default function MvpCelebration({
+  onClose,
+  mvp,
+  anchor,
+  autoClose = true,
+  dateLabel,
+}: CelebrationProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null)
   useEffect(() => {
-    const timer = window.setTimeout(onClose, VISIBLE_MS)
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    const dialog = dialogRef.current
+    dialog?.showModal()
+    const timer = autoClose ? window.setTimeout(onClose, VISIBLE_MS) : undefined
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
     window.addEventListener('keydown', onKeyDown)
 
     // 연출이 뜬 동안에는 뒤 페이지가 움직이지 않아야 한다. 모바일에서 모달
@@ -266,38 +345,51 @@ export default function MvpCelebration({ onClose, mvp, anchor }: CelebrationProp
     document.body.style.overflow = 'hidden'
 
     return () => {
+      dialog?.close()
       window.clearTimeout(timer)
       window.removeEventListener('keydown', onKeyDown)
       document.body.style.overflow = previousOverflow
     }
-  }, [onClose])
+  }, [onClose, autoClose])
 
   if (!mvp && !anchor) return null
   const solo = !mvp || !anchor
 
-  const label = mvp && anchor
-    ? `오늘의 MVP ${mvp.playerName}, 오늘의 걸배이 ${anchor.playerName}`
-    : mvp
-      ? `오늘의 MVP ${mvp.playerName}`
-      : `오늘의 걸배이 ${anchor!.playerName}`
+  const label =
+    mvp && anchor
+      ? `오늘의 MVP ${mvp.playerName}, 오늘의 걸배이 ${anchor.playerName}`
+      : mvp
+        ? `오늘의 MVP ${mvp.playerName}`
+        : `오늘의 걸배이 ${anchor!.playerName}`
 
   // 포털로 body 에 직접 붙인다. 대시보드 안에 두면 조상의 stacking context 에
   // 갇혀, z-50 인데도 z-40 짜리 하단탭이 위로 올라왔다.
   // 이 컴포넌트는 requestAnimationFrame 안에서만 마운트되므로 항상 클라이언트다.
   return createPortal(
-    <div
+    <dialog
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label={label}
       onClick={onClose}
+      onCancel={(event) => {
+        event.preventDefault()
+        onClose()
+      }}
       // 화면을 꽉 채우고 절대 스크롤되지 않는다. 두 칸은 flex-1 로 정확히 반씩.
       // 하단탭(z-40)보다 확실히 위에 올린다.
       className="mvp-celebration fixed inset-0 z-[100] flex flex-col overflow-hidden"
     >
+      <div className="celebration-toolbar">
+        <span>{dateLabel}</span>
+        <button aria-label="시상식 닫기" onClick={onClose}>
+          닫기 ×
+        </button>
+      </div>
       {mvp && <MvpPanel subject={mvp} solo={solo} />}
       {mvp && anchor && <div className="h-px shrink-0 bg-white/15" />}
       {anchor && <AnchorPanel subject={anchor} solo={solo} />}
-    </div>,
+    </dialog>,
     document.body,
   )
 }

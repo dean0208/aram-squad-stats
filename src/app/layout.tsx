@@ -1,9 +1,11 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
+import { Suspense } from 'react'
 import { Geist, Geist_Mono } from 'next/font/google'
 import Link from 'next/link'
 import MobileBottomNav from '@/components/MobileBottomNav'
 import './globals.css'
+import './experience.css'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -22,17 +24,33 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ko" className={`${geistSans.variable} ${geistMono.variable} h-full`}>
-      <body className="toss-theme min-h-full flex flex-col bg-[#eef1f5] text-[#191f28] antialiased">
-        <nav className="border-b border-[#dfe4ea] bg-[#f8fafc] px-4 py-3.5 sm:px-6 sm:py-4">
-          <Link href="/" className="text-lg font-bold text-blue-500 hover:text-blue-600 transition-colors">
-            마 좀 치나?
-          </Link>
-        </nav>
-        <main id="home" className="flex-1 container mx-auto px-4 pb-24 pt-8 max-w-6xl sm:pb-8">
+    <html
+      lang="ko"
+      className={`${geistSans.variable} ${geistMono.variable} h-full`}
+    >
+      <body className="min-h-full flex flex-col antialiased">
+        <a className="sr-only focus:not-sr-only" href="#home">
+          본문으로 건너뛰기
+        </a>
+        <header className="site-header">
+          <div className="site-header-inner">
+            <Link href="/" className="site-brand">
+              마 좀 치나?
+            </Link>
+            <span className="site-caption">
+              FOUR FRIENDS · ONE HOWLING ABYSS
+            </span>
+            <Suspense>
+              <MobileBottomNav desktop />
+            </Suspense>
+          </div>
+        </header>
+        <main id="home" className="site-main">
           {children}
         </main>
-        <MobileBottomNav />
+        <Suspense>
+          <MobileBottomNav />
+        </Suspense>
       </body>
     </html>
   )

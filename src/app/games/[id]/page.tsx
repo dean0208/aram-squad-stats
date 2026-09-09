@@ -1,279 +1,269 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
-import { fetchGameById } from '@/lib/games'
-import { DDRAGON_VERSION, getPlayerDisplayName } from '@/lib/config'
-import { fetchChampionNames, getChampionDisplayName } from '@/lib/championNames'
-import { toDisplayScore } from '@/lib/displayScore'
-import type { GameResult } from '@/lib/types'
-import { calculateMedals } from '@/lib/medals'
-
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${m}:${s.toString().padStart(2, '0')}`
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-AU', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function formatNumber(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
-  return n.toString()
-}
-
-function ChampionIcon({ name, size = 40 }: { name: string; size?: number }) {
-  const safeName = name.replace(/[^a-zA-Z0-9]/g, '')
-  return (
-    <Image
-      src={`https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${safeName}.png`}
-      alt={name}
-      width={size}
-      height={size}
-      className="rounded"
-      unoptimized
-    />
-  )
-}
-
-function ScoreBar({ value, max = 100 }: { value: number; max?: number }) {
-  const pct = Math.min(100, (value / max) * 100)
-  return (
-    <div className="w-full bg-gray-700 rounded-full h-1.5 mt-1">
-      <div
-        className="bg-purple-500 h-1.5 rounded-full"
-        style={{ width: `${pct}%` }}
-      />
-    </div>
-  )
-}
+import { fetchGameById, fetchGames } from '@/lib/games'
+import { getPlayerDisplayName } from '@/lib/config'
+import { fetchChampionNames } from '@/lib/championNames'
+import { getAugmentName } from '@/lib/augmentHighlight'
+import { calculateMedals, MEDAL_DOMINANCE } from '@/lib/medals'
+import {
+  displayDate,
+  duration,
+  gameHref,
+  homeHref,
+  kstDate,
+  validDate,
+} from '@/lib/experience'
+import { ChampionAvatar, ScoreHelp } from '@/components/GameUI'
 
 export default async function GameDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ date?: string }>
 }) {
   const { id } = await params
-
-  const game = await fetchGameById(id)
+  const query = await searchParams
+  const [game, allGames, names] = await Promise.all([
+    fetchGameById(id),
+    fetchGames(),
+    fetchChampionNames(),
+  ])
   if (!game) notFound()
-
-  const typedGame = game
-  const championNames = await fetchChampionNames()
-
-  // Sort by contribution score descending to find MVP
-  const sortedResults = [...typedGame.game_results].sort(
-    (a, b) => b.perf_score - a.perf_score,
-  )
-  const mvpId = sortedResults[0]?.id
-
-  // Compute game-level medals
-  const medals = calculateMedals(typedGame.game_results)
-  // Build map: resultId -> medals won
-  const resultMedals: Record<string, typeof medals> = {}
-  for (const m of medals) {
-    for (const w of m.winners) {
-      if (!resultMedals[w.id]) resultMedals[w.id] = []
-      resultMedals[w.id].push(m)
-    }
-  }
-
+  const date = validDate(query.date) ? query.date : kstDate(game.played_at)
+  const sorted = [...game.game_results]
+    .filter((r) => r.players)
+    .sort((a, b) => b.perf_score - a.perf_score)
+  const medals = calculateMedals(sorted)
+  const index = allGames.findIndex((g) => g.id === id)
+  const older = index >= 0 ? allGames[index + 1] : undefined
+  const newer = index > 0 ? allGames[index - 1] : undefined
+  const number = (n: number) => n.toLocaleString('ko-KR')
+  const playerName = (r: (typeof sorted)[number]) =>
+    getPlayerDisplayName(r.players!.puuid, r.players!.game_name)
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          href="/"
-          className="text-gray-400 hover:text-white transition-colors text-sm"
-        >
-          ← Back
-        </Link>
-      </div>
-
-      {/* Win/Loss Banner */}
-      <div
-        className={`rounded-2xl p-6 border ${
-          typedGame.our_team_win
-            ? 'bg-green-950 border-green-700'
-            : 'bg-red-950 border-red-700'
-        }`}
+      <Link
+        href={
+          kstDate(game.played_at) === date
+            ? homeHref(date, game.id)
+            : `${homeHref(date)}#matches`
+        }
+        className="text-link"
       >
-        <div className="flex items-center justify-between">
-          <div>
-            <div
-              className={`text-4xl font-black ${
-                typedGame.our_team_win ? 'text-green-400' : 'text-red-400'
-              }`}
-            >
-              {typedGame.our_team_win ? 'VICTORY' : 'DEFEAT'}
-            </div>
-            <div className="text-gray-400 mt-1">
-              {formatDate(typedGame.played_at)} • {formatDuration(typedGame.duration_seconds)}
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-sm text-gray-400">Match ID</div>
-            <div className="text-xs text-gray-500 font-mono">{typedGame.match_id}</div>
-          </div>
-        </div>
+        ← 보던 날짜의 경기로
+      </Link>
+      <header
+        className={`game-banner ${game.our_team_win ? 'is-win' : 'is-loss'}`}
+      >
+        <p className="eyebrow">OUR MATCH REPORT</p>
+        <h1>
+          {game.our_team_win ? '이 판은 우리 거.' : '다음 판에 갚아준다.'}
+        </h1>
+        <p className="text-sm">
+          <strong>{game.our_team_win ? '승리' : '패배'}</strong> ·{' '}
+          {displayDate(game.played_at, true)} ·{' '}
+          {duration(game.duration_seconds)} · 한국 시간
+        </p>
+        <details className="score-help">
+          <summary>경기 번호</summary>
+          <p>{game.match_id}</p>
+        </details>
+      </header>
+      <div className="section-heading">
+        <h2>우리 넷, 이번 판은?</h2>
+        <span className="pill">기여도 높은 순</span>
       </div>
-
-      {/* Player Scores Table */}
-      <div className="bg-gray-800 rounded-2xl border border-gray-700 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-700">
-          <h2 className="text-lg font-semibold text-white">Player Breakdown</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-700">
-                <th className="px-6 py-3 text-left">Player</th>
-                <th className="px-4 py-3 text-left">Champion</th>
-                <th className="px-4 py-3 text-center">K/D/A</th>
-                <th className="px-4 py-3 text-right">Damage</th>
-                <th className="px-4 py-3 text-right">Taken</th>
-                <th className="px-4 py-3 text-right">Healing</th>
-                <th className="px-4 py-3 text-right">기여도</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-700">
-              {sortedResults.map((result: GameResult) => (
-                <tr
-                  key={result.id}
-                  className="hover:bg-gray-750 transition-colors"
-                >
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      {result.id === mvpId && (
-                        <span className="text-yellow-400 text-lg" title="MVP">
-                          👑
-                        </span>
-                      )}
-                      <div>
-                        <div className="font-medium text-white">
-                          {result.players ? (
-                            <Link
-                              href={`/players/${encodeURIComponent(result.players.puuid)}`}
-                              className="hover:text-purple-400 transition-colors"
-                            >
-                              {getPlayerDisplayName(result.players.puuid, result.players.game_name)}
-                            </Link>
-                          ) : (
-                            '—'
-                          )}
-                        </div>
-                        {result.players && (
-                          <div className="text-xs text-gray-500">
-                            #{result.players.tag_line}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-2">
-                      <ChampionIcon name={result.champion_name} size={36} />
-                      <span className="text-sm text-gray-300">{getChampionDisplayName(result.champion_name, championNames)}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 text-center">
-                    <span className="text-green-400 font-medium">{result.kills}</span>
-                    <span className="text-gray-500 mx-1">/</span>
-                    <span className="text-red-400 font-medium">{result.deaths}</span>
-                    <span className="text-gray-500 mx-1">/</span>
-                    <span className="text-blue-400 font-medium">{result.assists}</span>
-                  </td>
-                  <td className="px-4 py-4 text-right text-sm text-orange-300 font-medium">
-                    {formatNumber(result.damage_dealt)}
-                  </td>
-                  <td className="px-4 py-4 text-right text-sm text-yellow-300 font-medium">
-                    {formatNumber(result.damage_taken)}
-                  </td>
-                  <td className="px-4 py-4 text-right text-sm text-green-300 font-medium">
-                    {formatNumber(result.healing)}
-                  </td>
-                  <td className="px-4 py-4 text-right">
-                    <div className="text-sm font-bold text-blue-400">
-                      {toDisplayScore(result.perf_score)}
-                    </div>
-                    <ScoreBar value={toDisplayScore(result.perf_score)} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Game Awards */}
-      {medals.length > 0 && (
-        <div className="bg-gray-800 rounded-2xl border border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">🏅 이번 판 수상자</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {medals.map(({ medal, winners }) => (
-              <div
-                key={medal.id}
-                className={`rounded-xl p-3 border ${
-                  medal.shame
-                    ? 'bg-gray-900 border-gray-600'
-                    : 'bg-gray-750 border-gray-600'
-                }`}
-              >
-                <div className="text-2xl mb-1">{medal.emoji}</div>
-                <div
-                  className={`text-xs font-bold mb-1 ${
-                    medal.shame ? 'text-gray-400' : 'text-gray-200'
-                  }`}
-                >
-                  {medal.name}
-                </div>
-                <div className="text-xs text-gray-300 font-medium">
-                  {winners.map((w) => w.players ? getPlayerDisplayName(w.players.puuid, w.players.game_name) : '?').join(', ')}
-                </div>
-                <div className="text-xs text-gray-500 mt-0.5">{medal.description}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Augments */}
-      {sortedResults.some((r) => r.augment_ids?.length > 0) && (
-        <div className="bg-gray-800 rounded-2xl border border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Augments</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {sortedResults
-              .filter((r) => r.augment_ids?.length > 0)
-              .map((result) => (
-                <div key={result.id} className="flex items-start gap-3">
-                  <ChampionIcon name={result.champion_name} size={28} />
-                  <div>
-                    <div className="text-sm text-gray-300 font-medium">
-                      {result.players ? getPlayerDisplayName(result.players.puuid, result.players.game_name) : '—'} ({getChampionDisplayName(result.champion_name, championNames)})
-                    </div>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {result.augment_ids.map((augId, i) => (
-                        <span
-                          key={i}
-                          className="px-2 py-0.5 bg-gray-700 text-gray-300 text-xs rounded font-mono"
-                        >
-                          #{augId}
-                        </span>
-                      ))}
+      <section
+        className="surface overflow-hidden game-desktop-results"
+        aria-label="선수별 기록 표"
+      >
+        <table className="game-stats-table">
+          <thead>
+            <tr>
+              <th>선수 · 챔피언</th>
+              <th>킬 / 데스 / 어시</th>
+              <th>준 피해</th>
+              <th>받은 피해</th>
+              <th>회복</th>
+              <th>기여도</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((result, i) => (
+              <tr key={result.id}>
+                <td>
+                  <div className="game-player">
+                    <ChampionAvatar
+                      name={result.champion_name}
+                      label={names[result.champion_name]}
+                    />
+                    <div>
+                      <Link
+                        href={`/players/${encodeURIComponent(result.players!.puuid)}?date=${date}`}
+                        className="font-bold"
+                      >
+                        {i === 0 ? '👑 ' : ''}
+                        {playerName(result)}
+                      </Link>
+                      <p className="muted text-xs">
+                        {names[result.champion_name] ?? result.champion_name}
+                      </p>
                     </div>
                   </div>
-                </div>
+                </td>
+                <td>
+                  {result.kills} / {result.deaths} / {result.assists}
+                </td>
+                <td>{number(result.damage_dealt)}</td>
+                <td>{number(result.damage_taken)}</td>
+                <td>{number(result.healing)}</td>
+                <td className="score">{Math.round(result.perf_score)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+      <section className="game-mobile-results" aria-label="선수별 경기 기록">
+        {sorted.map((result, i) => (
+          <article className="surface game-player-card" key={result.id}>
+            <div className="game-player">
+              <ChampionAvatar
+                name={result.champion_name}
+                label={names[result.champion_name]}
+                size={44}
+              />
+              <div>
+                <Link
+                  href={`/players/${encodeURIComponent(result.players!.puuid)}?date=${date}`}
+                  className="font-bold"
+                >
+                  {i === 0 ? '👑 ' : ''}
+                  {playerName(result)}
+                </Link>
+                <p className="muted text-xs">
+                  {names[result.champion_name] ?? result.champion_name}
+                </p>
+              </div>
+              <strong className="score">
+                {Math.round(result.perf_score)}
+                <small className="text-xs">점</small>
+              </strong>
+            </div>
+            <div className="game-player-kda">
+              <span className="muted text-xs">킬 / 데스 / 어시</span>
+              <strong>
+                {result.kills} / {result.deaths} / {result.assists}
+              </strong>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {result.augment_ids?.map((augment, j) => (
+                <span key={`${augment}-${j}`} className="augment-pill">
+                  {getAugmentName(augment)}
+                </span>
               ))}
+            </div>
+            <details className="score-help">
+              <summary>딜·탱킹 등 세부 지표</summary>
+              <div className="game-extra-stats">
+                {[
+                  ['준 피해', result.damage_dealt],
+                  ['받은 피해', result.damage_taken],
+                  ['회복', result.healing],
+                  ['어시스트', result.assists],
+                  ['CC', result.cc_score],
+                  ['골드', result.gold_earned],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <span>{label}</span>
+                    <strong>{number(Number(value))}</strong>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </article>
+        ))}
+      </section>
+      <ScoreHelp />
+      {medals.length > 0 && (
+        <section className="surface profile-section">
+          <div className="section-heading">
+            <h2>🏅 이번 판 수상자</h2>
+            <span className="muted text-xs">눌러서 수상 근거 보기</span>
           </div>
-        </div>
+          <div className="medal-grid mt-4">
+            {medals.map(({ medal, winners }) => {
+              const target = Number(winners[0][medal.field])
+              const others = sorted.filter(
+                (r) => Number(r[medal.field]) !== target,
+              )
+              const average =
+                others.reduce((sum, r) => sum + Number(r[medal.field]), 0) /
+                (others.length || 1)
+              return (
+                <details key={medal.id} className="soft-card">
+                  <summary>
+                    <span className="text-xl">{medal.emoji}</span>
+                    <h3 className="inline ml-2">{medal.name}</h3>
+                    <p className="text-sm font-bold mt-2">
+                      {winners.map(playerName).join(' · ')}
+                    </p>
+                    <p className="muted text-xs mt-1">{medal.description}</p>
+                  </summary>
+                  <p className="text-sm mt-3">
+                    수상자 {number(target)} · 나머지 참가자 평균{' '}
+                    {average.toLocaleString('ko-KR', {
+                      maximumFractionDigits: 1,
+                    })}
+                  </p>
+                  <p className="muted text-xs mt-2">
+                    {medal.alwaysAward
+                      ? '기여도 최고점에 수여합니다. 동점은 공동 수상입니다.'
+                      : `최고·최저 기록이면서 나머지 참가자 평균${medal.direction === 'highest' ? `의 ${medal.dominance ?? MEDAL_DOMINANCE}배 이상` : `을 ${medal.dominance ?? MEDAL_DOMINANCE}로 나눈 값 이하`}일 때 수여합니다.`}
+                  </p>
+                </details>
+              )
+            })}
+          </div>
+        </section>
       )}
+      <section className="surface profile-section game-desktop-results">
+        <h2>✦ 함께 고른 증강</h2>
+        <div className="grid gap-5 sm:grid-cols-2 mt-4">
+          {sorted.map((r) => (
+            <div key={r.id}>
+              <p className="text-sm font-bold mb-2">
+                {playerName(r)} · {names[r.champion_name] ?? r.champion_name}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {r.augment_ids?.length ? (
+                  r.augment_ids.map((aug, i) => (
+                    <span key={`${aug}-${i}`} className="augment-pill">
+                      {getAugmentName(aug)}
+                    </span>
+                  ))
+                ) : (
+                  <span className="muted text-xs">기록된 증강 없음</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+      <nav className="game-pager" aria-label="인접 경기">
+        {older ? (
+          <Link className="button-secondary" href={gameHref(older, date)}>
+            ← 이전 경기
+          </Link>
+        ) : (
+          <span />
+        )}
+        {newer && (
+          <Link className="button-secondary" href={gameHref(newer, date)}>
+            다음 경기 →
+          </Link>
+        )}
+      </nav>
     </div>
   )
 }

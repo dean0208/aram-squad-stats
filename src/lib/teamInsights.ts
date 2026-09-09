@@ -39,11 +39,11 @@ export function analyzeTeamComposition(game: CompositionGame): string[] {
   const insights: string[] = []
   const damageDealers = game.members.filter(member => member.damageType === 'AD' || member.damageType === 'AP').length
 
-  if (!types.has('Tank')) insights.push('앞에서 받아줄 탱커가 부족해서 한타를 열고 버티기 어려운 조합이었어요.')
-  if (!types.has('AD')) insights.push('AD·물리 딜이 부족해서 상대가 방어 아이템 하나로 버티기 쉬운 조합이었어요.')
-  if (!types.has('AP')) insights.push('AP·마법 딜이 부족해서 상대가 방어력을 한쪽으로만 올리기 쉬운 조합이었어요.')
-  if (damageDealers < 2) insights.push('실질적인 딜러가 부족해서 앞라인을 녹이는 속도가 느렸어요.')
-  if (!insights.length) insights.push('AD·AP 딜과 앞라인이 균형 잡힌 조합이었어요.')
+  if (!types.has('Tank')) insights.push('우리 4인 픽에는 탱커로 분류된 챔피언이 없었어요.')
+  if (!types.has('AD')) insights.push('우리 4인 픽에는 AD·물리 딜 역할이 없었어요.')
+  if (!types.has('AP')) insights.push('우리 4인 픽에는 AP·마법 딜 역할이 없었어요.')
+  if (damageDealers < 2) insights.push('우리 4인 픽에서 딜러로 분류된 챔피언은 2명 미만이었어요.')
+  if (!insights.length) insights.push('우리 4인 픽에 AD·AP 딜과 탱커 역할이 모두 있었어요.')
 
   return insights.slice(0, 2)
 }

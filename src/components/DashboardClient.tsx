@@ -1,909 +1,685 @@
 'use client'
 
-import { useState, useMemo, useRef, useEffect } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
-import type { Game, GameResult } from '@/lib/types'
+import type { Game, Player } from '@/lib/types'
 import type { NicknameAward } from '@/lib/nicknames'
-import { calculateMedals } from '@/lib/medals'
-import { getPlayerDisplayName, getPlayerPhoto, TRACKED_PLAYERS, DDRAGON_VERSION } from '@/lib/config'
-import { getChampionDisplayName, type ChampionNameMap, type ChampionRoleLabelMap } from '@/lib/championNames'
-import { rankContributionChampions } from '@/lib/championStats'
-import { getGrowthStatus } from '@/lib/growth'
+import type { ChampionNameMap, ChampionRoleLabelMap } from '@/lib/championNames'
+import { getPlayerDisplayName, getPlayerPhoto } from '@/lib/config'
 import { selectMvp } from '@/lib/mvp'
-import { resolveCelebrationPlan } from '@/lib/mvpCelebration'
 import { computeDailyTrend } from '@/lib/dailyTrend'
-import MvpCelebration, { preloadImages, type AwardSubject } from './MvpCelebration'
-import { toDisplayScore } from '@/lib/displayScore'
-import { assignPlayerTitles, type PlayerTitle } from '@/lib/playerTitles'
+import { calculateMedals } from '@/lib/medals'
 import { getAugmentHighlight, getAugmentName } from '@/lib/augmentHighlight'
 import { getGameCommentary } from '@/lib/gameCommentary'
-import { analyzeTeamComposition, getBestChampionComposition, getBestRoleByPlayer, getWorstRoleByPlayer } from '@/lib/teamInsights'
+import { analyzeTeamComposition } from '@/lib/teamInsights'
+import {
+  displayDate,
+  duration,
+  gameHref,
+  homeHref,
+  kstDate,
+  validDate,
+  recordMoments,
+  sessionSummary,
+} from '@/lib/experience'
+import MvpCelebration, {
+  preloadImages,
+  type AwardSubject,
+} from './MvpCelebration'
+import DailyReceipt from './DailyReceipt'
+import RecordRoom from './RecordRoom'
+import { ChampionAvatar, PlayerAvatar, ScoreHelp } from './GameUI'
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDuration(s: number) {
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-}
-function formatStartTime(iso: string) {
-  return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
-}
-function toKSTDateString(iso: string) {
-  return new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
-}
-function todayKST() { return toKSTDateString(new Date().toISOString()) }
-function formatDisplayDate(ymd: string) {
-  const [y, m, d] = ymd.split('-')
-  return `${y}년 ${parseInt(m)}월 ${parseInt(d)}일`
-}
-
-function ChampionIcon({ name, size = 32 }: { name: string; size?: number }) {
-  const safe = name.replace(/[^a-zA-Z0-9]/g, '')
-  return (
-    <Image
-      src={`https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${safe}.png`}
-      alt={name} width={size} height={size} className="rounded-md" unoptimized
-    />
+const nameOf = (p: { puuid: string; game_name: string }) =>
+  getPlayerDisplayName(p.puuid, p.game_name)
+const scores = (games: Game[]) =>
+  games.flatMap((g) =>
+    g.game_results
+      .filter((r) => r.players)
+      .map((r) => ({ puuid: r.players!.puuid, perfScore: r.perf_score })),
   )
-}
-
-// ─── Player stat computation ──────────────────────────────────────────────────
-
-type ChampRoleMap = ChampionRoleLabelMap
-
-function computePlayerStats(puuid: string, allGames: Game[], champRoles: ChampRoleMap) {
-  const entries = allGames.flatMap(g =>
-    g.game_results.filter(r => r.players?.puuid === puuid).map(r => ({ r, win: g.our_team_win }))
-  )
-  if (!entries.length) return null
-
-  const total = entries.length
-
-  // Most played champ + best contribution champ
-  const champData = new Map<string, { count: number; wins: number; totalContrib: number }>()
-  for (const { r, win } of entries) {
-    const prev = champData.get(r.champion_name) ?? { count: 0, wins: 0, totalContrib: 0 }
-    champData.set(r.champion_name, {
-      count: prev.count + 1,
-      wins: prev.wins + (win ? 1 : 0),
-      totalContrib: prev.totalContrib + r.perf_score,
-    })
-  }
-  const [mostChamp, mostInfo] = [...champData.entries()].sort((a, b) => b[1].count - a[1].count)[0]
-  const champWinRate = Math.round((mostInfo.wins / mostInfo.count) * 100)
-  const role = champRoles[mostChamp] ?? { label: '올라운더', emoji: '⚡' }
-
-  // Best/worst avg contribution champs (최소 3판 이상)
-  const { best: bestChamp, worst: worstChamp } = rankContributionChampions(
-    [...champData.entries()].map(([name, data]) => ({
-      name,
-      count: data.count,
-      totalContribution: data.totalContrib,
-    })),
-  )
-
-  // 전체 평균 대비 최근 10판 성장세
-  const avgContrib = entries.reduce((a, { r }) => a + r.perf_score, 0) / total
-  const avgDeath = entries.reduce((a, { r }) => a + r.deaths, 0) / total
-  const avgDamage = entries.reduce((a, { r }) => a + r.damage_dealt, 0) / total
-  const avgTaken = entries.reduce((a, { r }) => a + r.damage_taken, 0) / total
-  const avgHealing = entries.reduce((a, { r }) => a + r.healing, 0) / total
-  const avgCc = entries.reduce((a, { r }) => a + r.cc_score, 0) / total
-  const avgAssist = entries.reduce((a, { r }) => a + r.assists, 0) / total
-  const recent10 = entries.slice(0, Math.min(10, total))
-  const recent10AvgContrib = recent10.reduce((a, { r }) => a + r.perf_score, 0) / recent10.length
-  const growthStatus = getGrowthStatus(avgContrib, recent10AvgContrib)
-
-  return {
-    mostChamp, champWinRate, champCount: mostInfo.count, role,
-    bestChamp, worstChamp,
-    avgContrib: Math.round(avgContrib), avgDeath, growthStatus,
-    avgDamage, avgTaken, avgHealing, avgCc, avgAssist,
-    total,
+function subscribePrefs(callback: () => void) {
+  window.addEventListener('aram-prefs', callback)
+  window.addEventListener('storage', callback)
+  return () => {
+    window.removeEventListener('aram-prefs', callback)
+    window.removeEventListener('storage', callback)
   }
 }
+function getAuto() {
+  try {
+    return localStorage.getItem('aram:auto-celebration') !== 'off'
+  } catch {
+    return false
+  }
+}
+const serverAuto = () => false
 
-// ─── Player Profile Card ──────────────────────────────────────────────────────
-
-interface PlayerSummary { id: string; puuid: string; game_name: string; tag_line: string }
-
-type PlayerStatsResult = NonNullable<ReturnType<typeof computePlayerStats>>
-
-function PlayerProfileCard({ player, stats, title }: {
-  player: PlayerSummary; stats: PlayerStatsResult | null; title: PlayerTitle
+function MatchCard({
+  game,
+  date,
+  open,
+  toggle,
+  names,
+  roles,
+}: {
+  game: Game
+  date: string
+  open: boolean
+  toggle: () => void
+  names: ChampionNameMap
+  roles: ChampionRoleLabelMap
 }) {
-  if (!stats) return null
-
-  const growthStatusUi = {
-    폼다죽: { icon: '📉', className: 'bg-red-950/70 text-red-300' },
-    아쉬워: { icon: '😅', className: 'bg-orange-950/70 text-orange-300' },
-    '좋은데?': { icon: '👍', className: 'bg-blue-950/70 text-blue-300' },
-    버스기사님: { icon: '🚌', className: 'bg-green-950/70 text-green-300' },
-  }[stats.growthStatus]
-
-  return (
-    <div className="bg-gray-800/60 rounded-2xl p-3 sm:p-4 border border-gray-700 flex flex-col gap-2 h-full cursor-pointer touch-manipulation hover:border-purple-600/50 hover:shadow-lg hover:shadow-blue-100/60 transition-all">
-      {/* Header */}
-      <div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <div className="font-bold text-white text-base leading-tight">{getPlayerDisplayName(player.puuid, player.game_name)}</div>
-          <span className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-xs font-semibold leading-tight text-blue-600">
-            {title.emoji} {title.label}
-          </span>
-        </div>
-        <div className="text-sm text-gray-500">#{player.tag_line}</div>
-      </div>
-
-      {/* Champion highlights: stacked rows stay readable in narrow cards */}
-      <div className="space-y-1.5">
-        <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-yellow-900/40 bg-yellow-950/20 px-2 py-1">
-          <ChampionIcon name={stats.mostChamp} size={32} />
-          <div className="min-w-0">
-            <div className="text-sm leading-tight text-gray-500">모스트</div>
-          </div>
-          <div className="text-right text-sm leading-tight text-gray-400">
-            <div>{stats.champCount}판</div>
-            <div className="font-semibold text-yellow-300">승률 {stats.champWinRate}%</div>
-          </div>
-        </div>
-
-        {stats.bestChamp && (
-          <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-purple-900/40 bg-purple-950/20 px-2 py-1">
-            <ChampionIcon name={stats.bestChamp.name} size={32} />
-            <div className="min-w-0">
-              <div className="text-sm leading-tight text-gray-500">기여도 👍</div>
-            </div>
-            <div className="whitespace-nowrap text-right text-sm text-gray-400">
-              평균 <span className="font-semibold text-purple-300">{toDisplayScore(stats.bestChamp.avgContribution)}점</span>
-            </div>
-          </div>
-        )}
-
-        {stats.worstChamp && (
-          <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-red-900/40 bg-red-950/20 px-2 py-1">
-            <ChampionIcon name={stats.worstChamp.name} size={32} />
-            <div className="min-w-0">
-              <div className="text-sm leading-tight text-gray-500">기여도 👎</div>
-            </div>
-            <div className="whitespace-nowrap text-right text-sm text-gray-400">
-              평균 <span className="font-semibold text-red-300">{toDisplayScore(stats.worstChamp.avgContribution)}점</span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Role tag */}
-      <div className="flex flex-wrap gap-1">
-        <span className="text-sm px-2 py-0.5 rounded-full bg-gray-800 text-gray-500">
-          최근 10경기
-        </span>
-        <span
-          className={`text-sm px-2 py-0.5 rounded-full ${growthStatusUi.className}`}
-          title="전체 게임 평균 기여도 대비 최근 10게임 성장세"
-        >
-          {growthStatusUi.icon} {stats.growthStatus}
-        </span>
-      </div>
-
-      {/* Average contribution: keep the only numeric summary compact */}
-      <div className="min-w-0 rounded-lg bg-gray-900/50 px-2 py-1 mt-auto">
-        <div className="text-sm leading-tight text-gray-500">평균 기여도</div>
-        <div className="text-base font-semibold text-blue-400">{toDisplayScore(stats.avgContrib)}점</div>
-      </div>
-      <div className="flex items-center justify-between text-sm font-medium text-blue-500">
-        <span>상세 프로필</span>
-        <span aria-hidden="true">→</span>
-      </div>
-    </div>
-  )
-}
-
-// ─── MVP Card ─────────────────────────────────────────────────────────────────
-
-function MvpCard({ mvpResult, championNames }: { mvpResult: GameResult | null; championNames: ChampionNameMap }) {
-  if (!mvpResult) return null
-
-  return (
-    <div className="bg-gradient-to-r from-amber-950 to-yellow-950 border border-amber-700 rounded-2xl p-4 flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-center">
-      <div className="text-3xl">👑</div>
-      <div className="flex min-w-0 flex-col items-center gap-1.5">
-        <ChampionIcon name={mvpResult.champion_name} size={44} />
-        <div className="min-w-0">
-          <div className="text-sm text-amber-400 font-semibold uppercase tracking-wider">오늘의 MVP</div>
-          <div className="text-white font-bold text-xl leading-tight">{mvpResult.players ? getPlayerDisplayName(mvpResult.players.puuid, mvpResult.players.game_name) : '—'}</div>
-          <div className="text-base text-amber-300">{getChampionDisplayName(mvpResult.champion_name, championNames)} · {mvpResult.kills}/{mvpResult.deaths}/{mvpResult.assists}</div>
-        </div>
-      </div>
-      <div className="shrink-0 text-center">
-        <div className="text-3xl font-black text-amber-300">{toDisplayScore(mvpResult.perf_score)}</div>
-        <div className="text-sm text-amber-500">기여도 지수 / 100</div>
-      </div>
-    </div>
-  )
-}
-
-function DailyAugmentCard({ games }: { games: Game[] }) {
-  const highlight = getAugmentHighlight(
-    games.flatMap(game =>
-      game.game_results
-        .filter(result => result.players && result.augment_ids?.length)
-        .map(result => ({
-          our_team_win: game.our_team_win,
-          augment_ids: result.augment_ids,
-        })),
-    ),
-  )
-  if (!highlight) return null
-
-  return (
-    <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-center">
-      <div className="text-sm font-semibold text-blue-500">✨ 오늘의 증강</div>
-      <div className="mt-1 text-lg font-bold text-blue-700">{getAugmentName(highlight.id)}</div>
-      <div className="mt-0.5 text-sm text-blue-600">
-        {highlight.wins === highlight.games ? '승리한 판에서 가장 빛난 픽' : '오늘 승패에 가장 큰 영향을 준 픽'}
-      </div>
-    </div>
-  )
-}
-
-// ─── Collapsible Game Row ──────────────────────────────────────────────────────
-
-function GameRow({ game, champRoles }: { game: Game; champRoles: ChampRoleMap }) {
-  const [open, setOpen] = useState(false)
-  const medals = useMemo(() => calculateMedals(game.game_results), [game])
-  const resultMedals: Record<string, typeof medals> = {}
-  for (const m of medals)
-    for (const w of m.winners) {
-      if (!resultMedals[w.id]) resultMedals[w.id] = []
-      resultMedals[w.id].push(m)
-    }
-
-  const sorted = [...game.game_results]
-    .filter((r: GameResult) => r.players)
-    .sort((a: GameResult, b: GameResult) => b.perf_score - a.perf_score)
-  const mvp = sorted[0]
-  const wins = game.our_team_win
+  const results = [...game.game_results]
+    .filter((r) => r.players)
+    .sort((a, b) => b.perf_score - a.perf_score)
+  const mvp = results[0]
+  const medals = calculateMedals(results)
   const commentary = getGameCommentary({
     game_id: game.id,
     our_team_win: game.our_team_win,
-    game_results: game.game_results
-      .filter(result => result.players)
-      .map(result => ({
-        name: getPlayerDisplayName(result.players!.puuid, result.players!.game_name),
-        perf_score: result.perf_score,
-        damage_dealt: result.damage_dealt,
-        damage_taken: result.damage_taken,
-        healing: result.healing,
-        assists: result.assists,
-        cc_score: result.cc_score,
-      })),
-  })
-  const compositionInsights = analyzeTeamComposition({
-    win: game.our_team_win,
-    members: game.game_results.filter(result => result.players).map(result => ({
-      championName: result.champion_name,
-      damageType: champRoles[result.champion_name]?.damageType ?? 'Utility',
+    game_results: results.map((r) => ({
+      name: nameOf(r.players!),
+      perf_score: r.perf_score,
+      damage_dealt: r.damage_dealt,
+      damage_taken: r.damage_taken,
+      healing: r.healing,
+      assists: r.assists,
+      cc_score: r.cc_score,
     })),
   })
-  const hasPartialData = game.game_results.filter(result => result.players).length < 4
-
+  const insights = analyzeTeamComposition({
+    win: game.our_team_win,
+    members: results.map((r) => ({
+      championName: r.champion_name,
+      damageType: roles[r.champion_name]?.damageType ?? 'Utility',
+    })),
+  })
   return (
-    <div className={`rounded-xl border overflow-hidden ${wins ? 'border-green-800/60' : 'border-red-900/60'}`}>
+    <article
+      id={`match-${game.id}`}
+      className={`surface match-card ${game.our_team_win ? 'match-win' : 'match-loss'}`}
+    >
+      <div className="match-topline">
+        <span
+          className={`result-badge ${game.our_team_win ? 'is-win' : 'is-loss'}`}
+        >
+          {game.our_team_win ? '승리' : '패배'}
+        </span>
+        <span className="muted text-xs">
+          {displayDate(game.played_at, true)} ·{' '}
+          {duration(game.duration_seconds)}
+        </span>
+        <Link className="text-link ml-auto" href={gameHref(game, date)}>
+          경기 자세히 →
+        </Link>
+      </div>
       <button
-        onClick={() => setOpen(o => !o)}
+        className="match-toggle"
+        onClick={toggle}
         aria-expanded={open}
-        aria-label={`${formatDuration(game.duration_seconds)} 게임 상세 ${open ? '접기' : '보기'}`}
-        className="w-full flex flex-wrap items-center gap-3 p-3 sm:p-4 text-left hover:bg-white/5 transition-colors"
+        aria-controls={`results-${game.id}`}
+        aria-label={`${displayDate(game.played_at, true)} 선수별 기록 ${open ? '접기' : '펼치기'}`}
       >
-        <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${wins ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
-          {wins ? 'WIN' : 'LOSS'}
+        <div className="match-portraits">
+          {results.map((r) => (
+            <ChampionAvatar
+              key={r.id}
+              name={r.champion_name}
+              label={names[r.champion_name]}
+              size={32}
+            />
+          ))}
+        </div>
+        <span className="match-star">
+          {mvp ? (
+            <>
+              👑 {nameOf(mvp.players!)}{' '}
+              <strong>{Math.round(mvp.perf_score)}점</strong>
+            </>
+          ) : (
+            '선수 기록 없음'
+          )}
         </span>
-        <span className="text-gray-500 text-xs shrink-0">{formatStartTime(game.played_at)}</span>
-        <span className="text-gray-500 text-xs shrink-0">{formatDuration(game.duration_seconds)}</span>
-        {hasPartialData && <span className="rounded-full bg-orange-50 px-2 py-1 text-[11px] font-semibold text-orange-700">일부 지표 누락</span>}
-        {mvp && (
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            <ChampionIcon name={mvp.champion_name} size={24} />
-            <span className="text-sm text-gray-300 truncate">
-              <span className="text-purple-400 font-semibold">{mvp.players ? getPlayerDisplayName(mvp.players.puuid, mvp.players.game_name) : '—'}</span>
-              <span className="text-gray-500 ml-1">{mvp.kills}/{mvp.deaths}/{mvp.assists}</span>
-            </span>
-            {resultMedals[mvp.id]?.slice(0, 2).map(({ medal }) => (
-              <span key={medal.id} className="text-sm">{medal.emoji}</span>
-            ))}
-          </div>
-        )}
-        <span className={`shrink-0 text-gray-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>▾</span>
-        <span className={`basis-full order-last text-xs ${wins ? 'text-green-600' : 'text-red-600'}`}>
-          💬 {commentary}
-        </span>
-        <span className="basis-full order-last text-xs text-gray-500">
-          🧩 {compositionInsights.join(' ')}
+        <span className="chevron" aria-hidden="true">
+          {open ? '−' : '+'}
         </span>
       </button>
-
+      <p className="match-comment">{commentary}</p>
       {open && (
-        <Link href={`/games/${game.id}`} className="block border-t border-gray-700/50 p-3 sm:p-4 hover:bg-white/5 transition-colors">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {sorted.map((result: GameResult) => {
-              const myMedals = resultMedals[result.id] ?? []
-              return (
-                <div key={result.id} className="flex items-center gap-2">
-                  <ChampionIcon name={result.champion_name} size={28} />
-                  <div className="min-w-0">
-                    <div className="text-xs text-gray-300 font-medium truncate">{result.players ? getPlayerDisplayName(result.players.puuid, result.players.game_name) : '—'}</div>
-                    <div className="text-xs text-gray-500">{result.kills}/{result.deaths}/{result.assists}</div>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <span className="text-xs font-bold text-purple-400">{toDisplayScore(result.perf_score)}</span>
-                      {myMedals.slice(0, 3).map(({ medal }) => (
-                        <span key={medal.id} className="text-xs">{medal.emoji}</span>
-                      ))}
-                    </div>
-                  </div>
+        <div id={`results-${game.id}`} className="match-expanded">
+          <div className="match-result-grid">
+            {results.map((r) => (
+              <div className="mini-result" key={r.id}>
+                <ChampionAvatar
+                  name={r.champion_name}
+                  label={names[r.champion_name]}
+                  size={36}
+                />
+                <div className="min-w-0">
+                  <Link
+                    href={`/players/${encodeURIComponent(r.players!.puuid)}?date=${date}`}
+                    className="font-bold text-sm"
+                  >
+                    {nameOf(r.players!)}
+                  </Link>
+                  <p className="muted text-xs">
+                    {names[r.champion_name] ?? r.champion_name}
+                  </p>
+                  <p className="text-xs mt-1">
+                    {r.kills} / {r.deaths} / {r.assists}
+                  </p>
                 </div>
-              )
-            })}
-          </div>
-        </Link>
-      )}
-    </div>
-  )
-}
-
-function BestCompositionCard({ games, championNames }: { games: Game[]; championNames: ChampionNameMap }) {
-  const best = getBestChampionComposition(games.map(game => ({
-    win: game.our_team_win,
-    members: game.game_results.filter(result => result.players).map(result => ({
-      playerId: result.players!.puuid,
-      championName: result.champion_name,
-    })),
-  })))
-  if (!best) {
-    return (
-      <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
-        <div className="text-sm font-semibold text-indigo-700">🤝 가장 승률이 높았던 4인 조합</div>
-        <p className="mt-2 text-sm text-indigo-600">같은 4인 조합으로 3경기 이상 플레이한 기록이 아직 없어요.</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
-      <div className="text-sm font-semibold text-indigo-700">🤝 가장 승률이 높았던 4인 조합</div>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        {best.champions.map(champion => (
-          <div key={champion} className="flex w-16 flex-col items-center gap-1 text-center">
-            <ChampionIcon name={champion} size={40} />
-            <span className="text-xs font-medium leading-tight text-indigo-950">{getChampionDisplayName(champion, championNames)}</span>
-          </div>
-        ))}
-        <div className="ml-auto text-right">
-          <div className="text-2xl font-black text-indigo-700">{best.winRate}%</div>
-          <div className="text-xs text-indigo-600">{best.wins}승 {best.games - best.wins}패 · {best.games}경기</div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function BestRoleCard({ games, players, champRoles }: { games: Game[]; players: PlayerSummary[]; champRoles: ChampRoleMap }) {
-  const bestByPlayer = getBestRoleByPlayer(games.map(game => ({
-    win: game.our_team_win,
-    members: game.game_results.filter(result => result.players).map(result => ({
-      playerId: result.players!.puuid,
-      role: champRoles[result.champion_name]?.label ?? '올라운더',
-    })),
-  })))
-  const worstByPlayer = getWorstRoleByPlayer(games.map(game => ({
-    win: game.our_team_win,
-    members: game.game_results.filter(result => result.players).map(result => ({
-      playerId: result.players!.puuid,
-      role: champRoles[result.champion_name]?.label ?? '올라운더',
-    })),
-  })))
-  const rows = players.map(player => ({
-    name: getPlayerDisplayName(player.puuid, player.game_name),
-    best: bestByPlayer.get(player.puuid),
-  })).filter(row => row.best)
-  const worstRows = players.map(player => ({
-    name: getPlayerDisplayName(player.puuid, player.game_name),
-    worst: worstByPlayer.get(player.puuid),
-  })).filter(row => row.worst)
-  if (!rows.length) {
-    return (
-      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
-        <div className="text-sm font-semibold text-emerald-700">🎯 플레이어별 최고 팀 승률 포지션</div>
-        <p className="mt-2 text-sm text-emerald-600">포지션별 10경기 이상 기록이 쌓이면 신뢰도 높은 승률을 보여드릴게요.</p>
-      </div>
-    )
-  }
-
-  return (
-    <>
-      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
-        <div className="text-sm font-semibold text-emerald-700">🎯 플레이어별 최고 팀 승률 포지션</div>
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {rows.map(({ name, best }) => (
-            <div key={name} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
-              <span className="text-sm font-semibold text-emerald-950">{name}</span>
-              <span className="text-sm text-emerald-700"><b>{best!.role}</b> 잡을 때 {best!.winRate}% <span className="text-xs">({best!.games}경기)</span></span>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4">
-        <div className="text-sm font-semibold text-rose-700">📉 플레이어별 승률이 아쉬웠던 포지션</div>
-        {worstRows.length ? (
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {worstRows.map(({ name, worst }) => (
-              <div key={name} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
-                <span className="text-sm font-semibold text-rose-950">{name}</span>
-                <span className="text-sm text-rose-700"><b>{worst!.role}</b> 잡을 때 {worst!.winRate}% <span className="text-xs">({worst!.games}경기)</span></span>
+                <strong className="mini-score">
+                  {Math.round(r.perf_score)}
+                </strong>
               </div>
             ))}
           </div>
-        ) : (
-          <p className="mt-2 text-sm text-rose-600">포지션별 10경기 이상 기록이 쌓이면 아쉬웠던 역할도 보여드릴게요.</p>
-        )}
-      </div>
-    </>
-  )
-}
-
-// ─── Daily Performance vs Baseline ───────────────────────────────────────────
-
-function DailyPerformance({ allGames, filteredGames, players }: {
-  allGames: Game[]
-  filteredGames: Game[]
-  players: PlayerSummary[]
-}) {
-  if (!filteredGames.length) return null
-
-  // 판정은 갱신 연출과 같은 함수를 쓴다 — 카드와 모달이 다른 사람을 가리키면 안 된다.
-  const trend = computeDailyTrend(toTrendScores(allGames), toTrendScores(filteredGames))
-  if (!trend) return null
-
-  const nameOf = (puuid: string) => {
-    const player = players.find(p => p.puuid === puuid)
-    return player ? getPlayerDisplayName(player.puuid, player.game_name) : '—'
-  }
-  const topCarry = { name: nameOf(trend.carry.puuid), diff: trend.carry.diff }
-  const topAnchor = { name: nameOf(trend.anchor.puuid), diff: trend.anchor.diff }
-
-  return (
-    <div className="bg-gray-800/60 rounded-2xl border border-gray-700 overflow-hidden">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-700 text-center">
-        <div className="text-sm font-semibold text-gray-300">📊 오늘은 누가 좀 치싸뿌노</div>
-        <div className="text-xs text-gray-500 mt-0.5">전체 평균과 비교한 오늘의 상승·하락세</div>
-      </div>
-
-      {/* Two intuitive highlights, without score clutter */}
-      <div className="grid grid-cols-2 divide-x divide-gray-700 text-center">
-        <div className="flex flex-col items-center p-4">
-          <div className="text-xs text-gray-500 mb-2">임마 좀 치네</div>
-          <div className="text-2xl mb-1">🔥</div>
-          <div className="text-sm font-bold text-green-400 truncate" title={topCarry.name}>{topCarry.name}</div>
-          <div className="text-xs text-green-300 mt-1">{topCarry.diff >= 0 ? '뜨급다 뜨거워' : '오늘 가장 선방'}</div>
-        </div>
-        <div className="flex flex-col items-center p-4">
-          <div className="text-xs text-gray-500 mb-2">임마 걸배이고</div>
-          <div className="text-2xl mb-1">🧊</div>
-          <div className="text-sm font-bold text-red-400 truncate" title={topAnchor.name}>{topAnchor.name}</div>
-          <div className="text-xs text-red-300 mt-1">{topAnchor.diff < 0 ? '마 정신 안채리나' : '오늘은 조금 아쉬워요'}</div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function DateNavigator({ selectedDate, availableDates, onChange }: {
-  selectedDate: string; availableDates: Set<string>; onChange: (d: string) => void
-}) {
-  const sorted = useMemo(() => [...availableDates].sort(), [availableDates])
-  const idx = sorted.indexOf(selectedDate)
-  const latestDate = sorted[sorted.length - 1]
-  const pickerRef = useRef<HTMLInputElement>(null)
-
-  return (
-    <div className="flex items-center gap-2">
-      <button onClick={() => idx > 0 && onChange(sorted[idx - 1])} disabled={idx <= 0}
-        aria-label="이전 날짜" className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-lg">‹</button>
-      <div className="relative">
-        <button onClick={() => setTimeout(() => pickerRef.current?.showPicker?.(), 0)} aria-label="날짜 선택"
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-800 border border-gray-700 hover:border-purple-500 text-white font-medium text-sm transition-all">
-          <span>📅</span><span>{formatDisplayDate(selectedDate)}</span>
-        </button>
-        <input ref={pickerRef} type="date" value={selectedDate}
-          onChange={e => e.target.value && onChange(e.target.value)}
-          className="absolute inset-0 opacity-0 cursor-pointer" />
-      </div>
-      <button onClick={() => idx < sorted.length - 1 && onChange(sorted[idx + 1])} disabled={idx >= sorted.length - 1}
-        aria-label="다음 날짜" className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-lg">›</button>
-      <button onClick={() => latestDate && onChange(latestDate)} disabled={!latestDate || selectedDate === latestDate}
-        className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 transition-all hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40">최신</button>
-      {idx >= 0 && <span className="text-xs text-gray-500 hidden sm:block">{idx + 1} / {sorted.length}일</span>}
-    </div>
-  )
-}
-
-function SquadSummaryCard({ games }: { games: Game[] }) {
-  if (!games.length) return null
-  const wins = games.filter(game => game.our_team_win).length
-  const averageDuration = games.reduce((sum, game) => sum + game.duration_seconds, 0) / games.length
-  const recentResults = games.slice(0, 10)
-  return (
-    <section aria-labelledby="squad-summary-title" className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 sm:px-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 id="squad-summary-title" className="text-base font-semibold text-blue-950">📊 스쿼드 요약</h2>
-          <p className="mt-0.5 text-xs text-blue-700">저장된 전체 경기 기준</p>
-        </div>
-        <div className="text-right text-sm font-semibold text-blue-950">{games.length}전 {wins}승 {games.length - wins}패 · 승률 {Math.round((wins / games.length) * 100)}%</div>
-      </div>
-      <div className="mt-3 flex items-center gap-1.5" aria-label="최근 10경기 승패 흐름">
-        {recentResults.map(game => (
-          <span key={game.id} title={game.our_team_win ? '승리' : '패배'} className={`h-2.5 flex-1 rounded-full ${game.our_team_win ? 'bg-green-500' : 'bg-red-400'}`} />
-        ))}
-      </div>
-      <div className="mt-2 flex justify-between text-xs text-blue-700">
-        <span>최근 10경기 · 왼쪽이 최신</span>
-        <span>평균 {formatDuration(Math.round(averageDuration))}</span>
-      </div>
-    </section>
-  )
-}
-
-// ─── Hall of Fame ─────────────────────────────────────────────────────────────
-
-function HallOfFame({ nicknames }: { nicknames: NicknameAward[] }) {
-  if (!nicknames.length) return <p className="text-gray-500 text-center py-6 text-sm">게임을 더 싱크해주세요.</p>
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-      {nicknames.map(award => (
-        <div key={award.id} className={`toss-hall-card toss-hall-${award.borderColor.replace('border-', '').replace('-700', '')} bg-gradient-to-br ${award.color} rounded-xl p-3 border ${award.borderColor}`}>
-          <div className="text-2xl mb-1">{award.emoji}</div>
-          <div className={`text-xs font-bold break-words leading-tight ${award.textColor}`}>{award.name}</div>
-          <div className="text-xs text-gray-400 mb-1 leading-tight">{award.description}</div>
-          <div className="text-white font-semibold text-sm">{award.winner}</div>
-          <div className="text-xs text-gray-300">{award.valueLabel}</div>
-          {award.gapLabel && (
-            <div className={`mt-1 text-[11px] leading-tight ${award.contested ? 'text-amber-300' : 'text-gray-500'}`}>
-              {award.contested ? `접전 · ${award.gapLabel}` : award.gapLabel}
-            </div>
+          <p className="muted text-xs mt-3">🧩 {insights.join(' ')}</p>
+          {medals.length > 0 && (
+            <p className="muted text-xs mt-2">
+              {medals
+                .slice(0, 4)
+                .map((m) => `${m.medal.emoji} ${m.medal.name}`)
+                .join(' · ')}{' '}
+              · 수상 근거는 경기 상세에서
+            </p>
           )}
         </div>
-      ))}
-    </div>
+      )}
+    </article>
   )
 }
 
-// ─── Badge Leaderboard (카드형) ───────────────────────────────────────────────
-
-const BADGE_DEFS = [
-  { id: 'mvp',     emoji: '👑', name: 'MVP',    desc: '최고 기여도' },
-  { id: 'dealer',  emoji: '⚔️',  name: '딜장인', desc: '최고 딜량' },
-  { id: 'gold',    emoji: '💰', name: '골드왕', desc: '최다 골드' },
-  { id: 'healer',  emoji: '💊', name: '힐봇',   desc: '최고 힐량' },
-  { id: 'tank',    emoji: '🛡️', name: '방패',   desc: '피해흡수 1위' },
-  { id: 'killer',  emoji: '🎯', name: '킬머신', desc: '최다 킬' },
-  { id: 'assist',  emoji: '🤝', name: '어시왕', desc: '최다 어시' },
-  { id: 'death',   emoji: '💀', name: '죽어줘', desc: '최다 데스' },
-  { id: 'passive', emoji: '🐔', name: '꽁꽁이', desc: '최저 CC' },
-]
-
-function buildBadgeCounts(games: Game[]) {
-  const counts: Record<string, Record<string, number>> = {}
-  for (const game of games) {
-    const medals = calculateMedals(game.game_results)
-    for (const { medal, winners } of medals) {
-      if (winners.length === 1 && winners[0].players) {
-        const name = getPlayerDisplayName(winners[0].players.puuid, winners[0].players.game_name)
-        if (!counts[name]) counts[name] = {}
-        counts[name][medal.id] = (counts[name][medal.id] ?? 0) + 1
-      }
-    }
-  }
-  return counts
-}
-
-function BadgeLeaderboard({ games, players }: { games: Game[]; players: PlayerSummary[] }) {
-  const lb = useMemo(() => buildBadgeCounts(games), [games])
-
-  return (
-    <div className="grid grid-cols-3 sm:grid-cols-3 gap-2">
-      {BADGE_DEFS.map(badge => {
-        // 이 뱃지 1위 플레이어
-        const ranked = players
-          .map(p => {
-            const name = getPlayerDisplayName(p.puuid, p.game_name)
-            return { name, count: lb[name]?.[badge.id] ?? 0 }
-          })
-          .sort((a, b) => b.count - a.count)
-        return (
-          <div key={badge.id} className="bg-gray-800/60 rounded-xl p-3 border border-gray-700 flex flex-col gap-1.5">
-            <div className="flex items-center gap-1.5">
-              <span className="text-lg">{badge.emoji}</span>
-              <div>
-                <div className="text-xs font-bold text-gray-200">{badge.name}</div>
-                <div className="text-xs text-gray-500">{badge.desc}</div>
-              </div>
-            </div>
-            <div className="border-t border-gray-700 pt-1.5">
-              {ranked.map((p, i) => (
-                <div key={p.name} className={`flex justify-between items-center text-xs py-0.5 ${i === 0 && p.count > 0 ? 'text-yellow-400 font-bold' : 'text-gray-400'}`}>
-                  <span className="truncate">{i === 0 && p.count > 0 ? '🥇 ' : ''}{p.name.split(' ')[0]}</span>
-                  <span>{p.count || '—'}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-/** 경기 목록을 computeDailyTrend 가 받는 (puuid, 점수) 목록으로 편다. */
-function toTrendScores(games: Game[]) {
-  return games.flatMap(game =>
-    game.game_results
-      .filter(result => result.players)
-      .map(result => ({ puuid: result.players!.puuid, perfScore: result.perf_score })),
-  )
-}
-
-/** 이 브라우저가 마지막으로 연출한 대상. 같은 사람에게 두 번 띄우지 않는다. */
-const CELEBRATION_STORAGE_KEY = 'aram:last-mvp-celebration'
-const ANCHOR_STORAGE_KEY = 'aram:last-anchor-celebration'
-
-/** 저장이 막힌 환경(시크릿 창 등)에서도 연출은 그대로 띄운다. */
-function readStored(key: string): string | null {
-  try {
-    return window.localStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
-
-function writeStored(key: string, value: string) {
-  try {
-    window.localStorage.setItem(key, value)
-  } catch {
-    // 저장하지 못해도 이번 연출은 보여준다.
-  }
-}
-
-// ─── Main ─────────────────────────────────────────────────────────────────────
-
-interface Props {
+export default function DashboardClient({
+  allGames,
+  players,
+  initialNicknames,
+  champRoles,
+  championNames,
+}: {
   allGames: Game[]
-  players: PlayerSummary[]
+  players: Player[]
   initialNicknames: NicknameAward[]
-  champRoles: ChampRoleMap
+  champRoles: ChampionRoleLabelMap
   championNames: ChampionNameMap
-}
-
-export default function DashboardClient({ allGames, players, initialNicknames, champRoles, championNames }: Props) {
-  const availableDates = useMemo(() => {
-    const s = new Set<string>()
-    for (const g of allGames) s.add(toKSTDateString(g.played_at))
-    return s
-  }, [allGames])
-
-  // availableDates 는 이미 전체 날짜를 담고 있으므로 최신 날짜만 뽑아 쓴다.
-  const latestDate = useMemo(
-    () => [...availableDates].sort().pop() ?? todayKST(),
-    [availableDates],
+}) {
+  const query = useSearchParams()
+  const dates = useMemo(
+    () => [...new Set(allGames.map((g) => kstDate(g.played_at)))].sort(),
+    [allGames],
   )
-
-  const [selectedDate, setSelectedDate] = useState<string>(latestDate)
-
-  const [animKey, setAnimKey] = useState(0)
-  const handleDateChange = (d: string) => { setSelectedDate(d); setAnimKey(k => k + 1) }
-
-  const filteredGames = useMemo(
-    () => allGames.filter(g => toKSTDateString(g.played_at) === selectedDate),
-    [allGames, selectedDate]
+  const latestDate = dates.at(-1) ?? kstDate(new Date().toISOString())
+  const dateParam = query.get('date')
+  const date = validDate(dateParam) ? dateParam : latestDate
+  const openId = query.get('game')
+  const filtered = useMemo(
+    () => allGames.filter((g) => kstDate(g.played_at) === date),
+    [allGames, date],
   )
-
-  const orderedPlayers = useMemo(() => [...players].sort((a, b) => {
-    const ai = TRACKED_PLAYERS.findIndex(p => p.puuid === a.puuid)
-    const bi = TRACKED_PLAYERS.findIndex(p => p.puuid === b.puuid)
-    return ai - bi
-  }), [players])
-
-  // 프로필 카드와 칭호가 같은 통계를 쓰므로 플레이어당 한 번만 계산한다.
-  const statsByPuuid = useMemo(() => {
-    const map = new Map<string, PlayerStatsResult>()
-    for (const player of orderedPlayers) {
-      const stats = computePlayerStats(player.puuid, allGames, champRoles)
-      if (stats) map.set(player.puuid, stats)
-    }
-    return map
-  }, [orderedPlayers, allGames, champRoles])
-
-  // MVP 는 카드와 축하 연출이 함께 쓰므로 한 곳에서만 고른다.
-  const mvpResult = useMemo(
-    () => selectMvp(filteredGames.flatMap(game => game.game_results).filter(result => result.players)),
-    [filteredGames],
+  const summary = sessionSummary(filtered)
+  const best = selectMvp(
+    filtered.flatMap((g) => g.game_results).filter((r) => r.players),
   )
-
-  // 걸배이도 카드(DailyPerformance)와 연출이 같은 사람을 가리켜야 한다.
-  const dailyTrend = useMemo(
-    () => computeDailyTrend(
-      toTrendScores(allGames),
-      toTrendScores(filteredGames),
+  const bestGame = filtered.find((g) =>
+    g.game_results.some((r) => r.id === best?.id),
+  )
+  const trend = useMemo(
+    () => computeDailyTrend(scores(allGames), scores(filtered)),
+    [allGames, filtered],
+  )
+  const moments = useMemo(() => recordMoments(allGames, date), [allGames, date])
+  const augment = getAugmentHighlight(
+    filtered.flatMap((g) =>
+      g.game_results
+        .filter((r) => r.augment_ids?.length)
+        .map((r) => ({
+          our_team_win: g.our_team_win,
+          augment_ids: r.augment_ids,
+        })),
     ),
-    [allGames, filteredGames],
   )
-
-  // 갱신된 상만 담는다. 둘 다 null 이면 연출을 띄우지 않는다.
-  const [celebration, setCelebration] = useState<{ mvp: AwardSubject | null; anchor: AwardSubject | null } | null>(null)
-
-  // MVP·걸배이가 바뀐 순간에만 띄운다. 이미 보여 준 대상은 localStorage 로 기억한다.
-  //
-  // 판정을 다음 프레임으로 미루는 이유는 두 가지다. localStorage 는 서버
-  // 렌더에 없으므로 첫 렌더에서 읽으면 하이드레이션 결과가 어긋나고,
-  // 이펙트 본문에서 곧바로 상태를 바꾸면 연쇄 렌더가 된다.
+  const playerName = useCallback(
+    (puuid: string) => {
+      const player = players.find((p) => p.puuid === puuid)
+      return player ? nameOf(player) : '—'
+    },
+    [players],
+  )
+  const subjects = useMemo(
+    () => ({
+      mvp: best?.players
+        ? ({
+            playerName: nameOf(best.players),
+            photoUrl: getPlayerPhoto(best.players.puuid),
+            headline: `${Math.round(best.perf_score)}점`,
+            caption: '이날 단일 경기 최고 기여도',
+            detail: `${championNames[best.champion_name] ?? best.champion_name} · ${best.kills}/${best.deaths}/${best.assists}`,
+          } satisfies AwardSubject)
+        : null,
+      anchor: trend
+        ? ({
+            playerName: playerName(trend.anchor.puuid),
+            photoUrl: getPlayerPhoto(trend.anchor.puuid, 'anchor'),
+            headline: `${Math.round(trend.anchor.todayAvg)}점`,
+            caption: `전체 평균 대비 ${trend.anchor.diff >= 0 ? '+' : ''}${trend.anchor.diff.toFixed(1)}점`,
+            detail:
+              trend.anchor.diff < 0
+                ? '마 정신 안채리나'
+                : '다 같이 잘한 날, 상승 폭은 조금 작았네',
+          } satisfies AwardSubject)
+        : null,
+    }),
+    [best, championNames, trend, playerName],
+  )
+  const [celebration, setCelebration] = useState<'auto' | 'manual' | null>(null)
+  const [receipt, setReceipt] = useState(false)
+  const auto = useSyncExternalStore(subscribePrefs, getAuto, serverAuto)
+  const closeCelebration = useCallback(() => setCelebration(null), [])
   useEffect(() => {
+    if (
+      !auto ||
+      !best ||
+      date !== latestDate ||
+      openId ||
+      receipt ||
+      celebration
+    )
+      return
+    const key = `${date}:${best.id}:${trend?.anchor.puuid ?? ''}`
+    try {
+      if (localStorage.getItem('aram:shown-awards-v2') === key) return
+    } catch {
+      return
+    }
     let cancelled = false
-    const frame = window.requestAnimationFrame(() => {
-      const anchorPuuid = dailyTrend?.anchor.puuid ?? null
-
-      const plan = resolveCelebrationPlan({
-        date: selectedDate,
-        isLatestDate: selectedDate === latestDate,
-        mvpResultId: mvpResult?.id ?? null,
-        anchorPuuid,
-        lastMvpKey: readStored(CELEBRATION_STORAGE_KEY),
-        lastAnchorKey: readStored(ANCHOR_STORAGE_KEY),
-      })
-      if (!plan) return
-
-      const mvp: AwardSubject | null = plan.mvpKey && mvpResult?.players
-        ? {
-            playerName: getPlayerDisplayName(mvpResult.players.puuid, mvpResult.players.game_name),
-            photoUrl: getPlayerPhoto(mvpResult.players.puuid, 'mvp'),
-            headline: String(toDisplayScore(mvpResult.perf_score)),
-            caption: '기여도 지수 / 100',
-            detail: `${getChampionDisplayName(mvpResult.champion_name, championNames)} · ${mvpResult.kills}/${mvpResult.deaths}/${mvpResult.assists}`,
-          }
-        : null
-
-      const anchorPlayer = anchorPuuid ? players.find(p => p.puuid === anchorPuuid) : undefined
-      const anchor: AwardSubject | null = plan.anchorKey && dailyTrend && anchorPlayer
-        ? {
-            playerName: getPlayerDisplayName(anchorPlayer.puuid, anchorPlayer.game_name),
-            photoUrl: getPlayerPhoto(anchorPlayer.puuid, 'anchor'),
-            // 차이를 큰 글씨로 세우면 -0.4 같은 값이 반올림돼 "0" 으로 뜬다.
-            // 오늘 점수를 세우고, 평소와의 격차는 아래 한 줄로 붙인다.
-            headline: String(toDisplayScore(dailyTrend.anchor.todayAvg)),
-            caption: `평소보다 ${dailyTrend.anchor.diff >= 0 ? '+' : '−'}${Math.abs(dailyTrend.anchor.diff).toFixed(1)}점`,
-            detail: dailyTrend.anchor.diff < 0 ? '마 정신 안채리나' : '오늘은 조금 아쉬워요',
-          }
-        : null
-
-      if (!mvp && !anchor) return
-
-      // 사진을 먼저 받아 둔다. 연출이 2초뿐이라 띄운 뒤에 받으면 빈 칸만 보다가 닫힌다.
-      preloadImages([mvp?.photoUrl ?? null, anchor?.photoUrl ?? null]).then(() => {
+    const timer = window.setTimeout(() => {
+      preloadImages([
+        subjects.mvp?.photoUrl ?? null,
+        subjects.anchor?.photoUrl ?? null,
+      ]).then(() => {
         if (cancelled) return
-        setCelebration({ mvp, anchor })
-        if (plan.mvpKey) writeStored(CELEBRATION_STORAGE_KEY, plan.mvpKey)
-        if (plan.anchorKey) writeStored(ANCHOR_STORAGE_KEY, plan.anchorKey)
+        setCelebration('auto')
+        try {
+          localStorage.setItem('aram:shown-awards-v2', key)
+        } catch {
+          /* Optional preference. */
+        }
       })
-    })
+    }, 800)
     return () => {
       cancelled = true
-      window.cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
     }
-  }, [selectedDate, latestDate, mvpResult, dailyTrend, players, championNames])
-
-  const playerTitles = useMemo(
-    () => assignPlayerTitles([...statsByPuuid.entries()].map(([puuid, stats]) => ({
-      puuid,
-      role: stats.role.label,
-      avgDamage: stats.avgDamage,
-      avgTaken: stats.avgTaken,
-      avgHealing: stats.avgHealing,
-      avgCc: stats.avgCc,
-      avgAssist: stats.avgAssist,
-    }))),
-    [statsByPuuid],
-  )
-
+  }, [
+    auto,
+    best,
+    date,
+    latestDate,
+    openId,
+    trend,
+    receipt,
+    celebration,
+    subjects,
+  ])
+  function setDate(value: string) {
+    if (validDate(value)) window.history.pushState(null, '', homeHref(value))
+  }
+  function toggleGame(id: string) {
+    window.history.replaceState(
+      null,
+      '',
+      `/?date=${date}${openId === id ? '' : `&game=${id}`}`,
+    )
+  }
+  function toggleAuto() {
+    try {
+      localStorage.setItem('aram:auto-celebration', auto ? 'off' : 'on')
+      window.dispatchEvent(new Event('aram-prefs'))
+    } catch {
+      /* Optional preference. */
+    }
+  }
+  const previous = dates.filter((day) => day < date).at(-1)
+  const next = dates.find((day) => day > date)
   return (
-    <div className="space-y-6">
-
+    <div className="dashboard space-y-7">
       {celebration && (
         <MvpCelebration
-          onClose={() => setCelebration(null)}
-          mvp={celebration.mvp}
-          anchor={celebration.anchor}
+          {...subjects}
+          onClose={closeCelebration}
+          autoClose={celebration === 'auto'}
+          dateLabel={displayDate(date)}
         />
       )}
-
-      {/* ── 날짜 탐색 ── */}
-      <DateNavigator selectedDate={selectedDate} availableDates={availableDates} onChange={handleDateChange} />
-
-      {/* ── 오늘의 MVP (최상단) ── */}
-      <div key={`mvp-${animKey}`} style={{ animation: 'fadeSlideIn 0.25s ease-out' }}>
-        <MvpCard mvpResult={mvpResult} championNames={championNames} />
-      </div>
-
-      {/* ── 플레이어 프로필 (고정) ──
-          날짜와 무관한 전체 이력을 쓰므로 애니메이션 래퍼 밖에 둔다.
-          안에 두면 날짜를 바꿀 때마다 리마운트되어 전부 다시 집계한다. */}
-      <section id="players">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-          {orderedPlayers.map(p => (
+      {receipt && (
+        <DailyReceipt
+          games={filtered}
+          date={date}
+          best={
+            best?.players
+              ? `${nameOf(best.players)} · ${Math.round(best.perf_score)}점`
+              : '—'
+          }
+          rise={trend ? playerName(trend.carry.puuid) : '—'}
+          anchor={trend ? playerName(trend.anchor.puuid) : '—'}
+          onClose={() => setReceipt(false)}
+        />
+      )}
+      <section className="day-overview" aria-label="선택한 날짜의 전적">
+        <div className="date-nav">
+          <button
+            className="icon-button"
+            aria-label="이전 경기 날짜"
+            disabled={!previous}
+            onClick={() => previous && setDate(previous)}
+          >
+            ‹
+          </button>
+          <label className="date-field">
+            <span className="sr-only">경기 날짜 선택</span>
+            <input
+              type="date"
+              value={date}
+              max={latestDate}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </label>
+          <button
+            className="icon-button"
+            aria-label="다음 경기 날짜"
+            disabled={!next}
+            onClick={() => next && setDate(next)}
+          >
+            ›
+          </button>
+          <button
+            className="button-secondary"
+            disabled={date === latestDate}
+            onClick={() => setDate(latestDate)}
+          >
+            최신
+          </button>
+          <span className="muted text-xs hidden sm:inline">한국 시간 기준</span>
+        </div>
+        <div className="day-headline">
+          <div>
+            <p className="eyebrow">{displayDate(date)} · OUR MATCH DAY</p>
+            <h2>{summary.line}</h2>
+            <p className="muted text-sm mt-2">
+              {filtered.length
+                ? `${filtered.length}전 ${summary.wins}승 ${summary.losses}패 · 같이 뛴 시간 ${Math.floor(summary.seconds / 60)}분`
+                : '경기가 있는 다른 날짜를 골라보세요.'}
+            </p>
+          </div>
+        </div>
+        <div
+          className="day-results"
+          aria-label="선택 날짜 승패, 왼쪽이 먼저 한 경기"
+        >
+          {[...filtered].reverse().map((g, i) => (
             <Link
-              key={p.puuid}
-              href={`/players/${encodeURIComponent(p.puuid)}`}
-              prefetch
-              className="group block h-full rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2"
-              aria-label={`${getPlayerDisplayName(p.puuid, p.game_name)} 상세 프로필 보기`}
+              key={g.id}
+              href={gameHref(g, date)}
+              className={g.our_team_win ? 'is-win' : 'is-loss'}
+              aria-label={`${i + 1}번째 경기 ${g.our_team_win ? '승리' : '패배'}`}
             >
-              <PlayerProfileCard
-                player={p}
-                stats={statsByPuuid.get(p.puuid) ?? null}
-                title={playerTitles.get(p.puuid) ?? { emoji: '⚡', label: '든든한 전력' }}
-              />
+              {g.our_team_win ? '승' : '패'}
             </Link>
           ))}
+          <button
+            className="button-primary"
+            disabled={!filtered.length}
+            onClick={() => setReceipt(true)}
+          >
+            전적 영수증 ↗
+          </button>
+          <span className="muted text-xs">← 첫 판 · 마지막 판 →</span>
         </div>
       </section>
-
-      {/* ── 날짜별 콘텐츠 ── */}
-      <div key={animKey} className="space-y-4" style={{ animation: 'fadeSlideIn 0.25s ease-out' }}>
-        {filteredGames.length > 0 && <DailyAugmentCard games={filteredGames} />}
-        {filteredGames.length > 0 && (
-          <DailyPerformance allGames={allGames} filteredGames={filteredGames} players={orderedPlayers} />
-        )}
-        <section id="matches">
-          <div className="flex items-center gap-2 mb-3">
-            <h2 className="text-base font-semibold text-gray-300">당일 게임</h2>
-            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">전체 {filteredGames.length}경기</span>
+      {best && (
+        <section className="award-section" aria-label="이날의 시상식">
+          <div className="award-grid">
+            <article className="award-card award-gold">
+              <div className="flex items-center gap-3">
+                <PlayerAvatar
+                  puuid={best.players!.puuid}
+                  name={nameOf(best.players!)}
+                  size={48}
+                />
+                <div>
+                  <p className="eyebrow">👑 이날 최고의 한 판</p>
+                  <h3>{nameOf(best.players!)}</h3>
+                </div>
+                <strong className="award-score">
+                  {Math.round(best.perf_score)}
+                  <small>점</small>
+                </strong>
+              </div>
+              <div className="flex items-center justify-between gap-2 mt-3">
+                <p className="text-sm">
+                  {championNames[best.champion_name] ?? best.champion_name} ·{' '}
+                  {best.kills}/{best.deaths}/{best.assists}
+                </p>
+                {bestGame && (
+                  <Link href={gameHref(bestGame, date)} className="text-link">
+                    그 경기 →
+                  </Link>
+                )}
+              </div>
+            </article>
+            {trend && (
+              <article className="award-card award-trend">
+                <div>
+                  <p className="eyebrow">🔥 평소보다 잘한 사람</p>
+                  <h3>
+                    {playerName(trend.carry.puuid)}{' '}
+                    <span className="positive text-sm">
+                      {trend.carry.diff >= 0 ? '+' : ''}
+                      {trend.carry.diff.toFixed(1)}점
+                    </span>
+                  </h3>
+                </div>
+                <div className="mt-3">
+                  <p className="eyebrow">🧊 이날의 걸배이</p>
+                  <p className="font-bold">
+                    {playerName(trend.anchor.puuid)}{' '}
+                    <span className="muted text-sm">
+                      {trend.anchor.diff >= 0 ? '+' : ''}
+                      {trend.anchor.diff.toFixed(1)}점
+                    </span>
+                  </p>
+                </div>
+              </article>
+            )}
           </div>
-          {filteredGames.length === 0
-            ? <p className="text-gray-500 text-center py-8 text-sm">해당 날짜에 기록된 게임이 없습니다</p>
-            : <div className="space-y-2">{filteredGames.map(g => <GameRow key={g.id} game={g} champRoles={champRoles} />)}</div>
-          }
+          <div className="award-controls">
+            <button
+              className="text-link"
+              onClick={() => setCelebration('manual')}
+            >
+              ▶ 시상식 다시 보기
+            </button>
+            <label className="flex items-center gap-2 text-xs muted">
+              <input type="checkbox" checked={auto} onChange={toggleAuto} />새
+              수상자 자동 연출
+            </label>
+          </div>
+          <ScoreHelp />
         </section>
-      </div>
-
-      {/* 아래 카드들은 선택 날짜와 무관하게 전체 이력을 쓴다.
-          애니메이션 래퍼 안에 두면 날짜를 바꿀 때마다 리마운트되어
-          전체 경기를 다시 집계하므로 밖에 둔다. */}
-      <SquadSummaryCard games={allGames} />
-      <BestCompositionCard games={allGames} championNames={championNames} />
-      <BestRoleCard games={allGames} players={orderedPlayers} champRoles={champRoles} />
-
-      {/* ── 명예의 전당 ── */}
-      <section id="records">
-        <details className="group">
-          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl px-1 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 [&::-webkit-details-marker]:hidden">
-            <h2 className="text-base font-semibold text-gray-300">🏛️ 마일스톤</h2>
-            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">역대 기록</span>
-            <span className="ml-auto text-sm text-gray-500 transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
-          </summary>
-          <div className="mt-3"><HallOfFame nicknames={initialNicknames} /></div>
-        </details>
+      )}
+      <section id="matches" className="space-y-3">
+        <div className="section-heading">
+          <h2>이날의 경기</h2>
+          <span className="pill">{filtered.length}경기 · 최신순</span>
+        </div>
+        {!filtered.length ? (
+          <div className="surface empty-state">
+            <p>이날은 나락 휴무.</p>
+            <button
+              className="text-link mt-3"
+              onClick={() => setDate(latestDate)}
+            >
+              최근 경기 보러 가기 →
+            </button>
+          </div>
+        ) : (
+          filtered.map((game) => (
+            <MatchCard
+              key={game.id}
+              game={game}
+              date={date}
+              open={openId === game.id}
+              toggle={() => toggleGame(game.id)}
+              names={championNames}
+              roles={champRoles}
+            />
+          ))
+        )}
       </section>
-
-      {/* ── 뱃지 리더보드 ── */}
-      <section>
-        <details className="group">
-          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl px-1 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 [&::-webkit-details-marker]:hidden">
-            <h2 className="text-base font-semibold text-gray-300">🏅 메달리스트</h2>
-            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">누가 제일 많이 모았나</span>
-            <span className="ml-auto text-sm text-gray-500 transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
-          </summary>
-          <div className="mt-3"><BadgeLeaderboard games={allGames} players={orderedPlayers} /></div>
-        </details>
+      {(moments.length > 0 || augment) && (
+        <section className="space-y-3">
+          <div className="section-heading">
+            <h2>이날 남긴 장면</h2>
+            <span className="muted text-xs">숫자로 남은 이야기</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {moments.slice(0, 4).map((moment) => (
+              <article className="surface moment-card" key={moment.id}>
+                <p className="eyebrow">
+                  {moment.label === '반등 성공' ? '🔥' : '✨'} {moment.label}
+                </p>
+                <h3>{getPlayerDisplayName(moment.puuid, moment.name)}</h3>
+                <p className="mt-2">
+                  <span className="muted">{Math.round(moment.previous)}</span> →{' '}
+                  <strong>
+                    {Math.round(moment.value)}
+                    {moment.label.includes('어시') ? '어시' : '점'}
+                  </strong>
+                </p>
+                <div className="flex gap-4 mt-3">
+                  <Link
+                    className="text-link"
+                    href={gameHref(moment.game, date)}
+                  >
+                    이 경기 →
+                  </Link>
+                  <Link
+                    className="text-link"
+                    href={gameHref(moment.previousGame, date)}
+                  >
+                    {moment.label === '반등 성공'
+                      ? '직전 경기'
+                      : '이전 최고 기록'}{' '}
+                    →
+                  </Link>
+                </div>
+                <p className="muted text-xs mt-2">
+                  조회한 기록 기준 · 이전 3경기 이상
+                </p>
+              </article>
+            ))}
+            {augment && (
+              <article className="surface moment-card">
+                <p className="eyebrow">✦ 이날의 증강</p>
+                <h3>{getAugmentName(augment.id)}</h3>
+                <p className="muted text-sm mt-2">
+                  선택한 선수 기록 {augment.games}건 중 {augment.wins}승{' '}
+                  {augment.games - augment.wins}패
+                </p>
+                <p className="muted text-xs mt-2">
+                  사용 선수별 집계 · 승리 기록이 많이 쌓인 증강
+                </p>
+              </article>
+            )}
+          </div>
+        </section>
+      )}
+      <section id="players" className="space-y-3">
+        <div className="section-heading">
+          <h2>우리 네 명</h2>
+          <span className="muted text-xs">전체 기록 · 프로필과 도감</span>
+        </div>
+        <div className="player-grid">
+          {players.map((player) => {
+            const rows = allGames.flatMap((g) =>
+              g.game_results.filter((r) => r.players?.puuid === player.puuid),
+            )
+            const average =
+              rows.reduce((sum, r) => sum + r.perf_score, 0) /
+              (rows.length || 1)
+            const recent = rows.slice(0, 10)
+            const diff =
+              recent.reduce((sum, r) => sum + r.perf_score, 0) /
+                (recent.length || 1) -
+              average
+            const champions = new Map<string, number>()
+            rows.forEach((r) =>
+              champions.set(
+                r.champion_name,
+                (champions.get(r.champion_name) ?? 0) + 1,
+              ),
+            )
+            const most = [...champions].sort((a, b) => b[1] - a[1])[0]
+            return (
+              <Link
+                className="surface profile-card"
+                key={player.puuid}
+                href={`/players/${encodeURIComponent(player.puuid)}?date=${date}`}
+              >
+                <div className="flex items-center gap-2">
+                  <PlayerAvatar
+                    puuid={player.puuid}
+                    name={nameOf(player)}
+                    size={36}
+                  />
+                  <h3>{nameOf(player)}</h3>
+                  <span className="ml-auto muted" aria-hidden="true">
+                    ↗
+                  </span>
+                </div>
+                <p className="profile-score">
+                  {Math.round(average)}
+                  <small>평균 기여도</small>
+                </p>
+                <p className={`text-xs ${diff >= 0 ? 'positive' : 'muted'}`}>
+                  최근 {recent.length}판 · 평소보다 {diff >= 0 ? '+' : ''}
+                  {diff.toFixed(1)}점
+                </p>
+                {most && (
+                  <div className="profile-champion">
+                    <ChampionAvatar
+                      name={most[0]}
+                      label={championNames[most[0]]}
+                      size={24}
+                    />
+                    <span>
+                      {championNames[most[0]] ?? most[0]}{' '}
+                      <small>{most[1]}판</small>
+                    </span>
+                  </div>
+                )}
+              </Link>
+            )
+          })}
+        </div>
       </section>
-
+      <RecordRoom
+        games={allGames}
+        date={date}
+        players={players}
+        nicknames={initialNicknames}
+        names={championNames}
+        roles={champRoles}
+      />
     </div>
   )
 }
