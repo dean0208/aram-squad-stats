@@ -420,6 +420,24 @@ export default function DashboardClient({
                 : '경기가 있는 다른 날짜를 골라보세요.'}
             </p>
           </div>
+          {filtered.length > 0 && (
+            <div
+              className="day-scoreboard"
+              aria-label={`${summary.wins}승 ${summary.losses}패`}
+            >
+              <div>
+                <strong>{String(summary.wins).padStart(2, '0')}</strong>
+                <span>승리 / WIN</span>
+              </div>
+              <span className="scoreboard-divider" aria-hidden="true">
+                :
+              </span>
+              <div>
+                <strong>{String(summary.losses).padStart(2, '0')}</strong>
+                <span>패배 / LOSS</span>
+              </div>
+            </div>
+          )}
         </div>
         <div
           className="day-results"
@@ -518,7 +536,12 @@ export default function DashboardClient({
       )}
       <section id="matches" className="space-y-3">
         <div className="section-heading">
-          <h2>이날의 경기</h2>
+          <h2>
+            <span className="section-index" aria-hidden="true">
+              01
+            </span>
+            이날의 경기
+          </h2>
           <span className="pill">{filtered.length}경기 · 최신순</span>
         </div>
         {!filtered.length ? (
@@ -532,23 +555,30 @@ export default function DashboardClient({
             </button>
           </div>
         ) : (
-          filtered.map((game) => (
-            <MatchCard
-              key={game.id}
-              game={game}
-              date={date}
-              open={openId === game.id}
-              toggle={() => toggleGame(game.id)}
-              names={championNames}
-              roles={champRoles}
-            />
-          ))
+          <div className="match-list">
+            {filtered.map((game) => (
+              <MatchCard
+                key={game.id}
+                game={game}
+                date={date}
+                open={openId === game.id}
+                toggle={() => toggleGame(game.id)}
+                names={championNames}
+                roles={champRoles}
+              />
+            ))}
+          </div>
         )}
       </section>
       {(moments.length > 0 || augment) && (
         <section className="space-y-3">
           <div className="section-heading">
-            <h2>이날 남긴 장면</h2>
+            <h2>
+              <span className="section-index" aria-hidden="true">
+                02
+              </span>
+              이날 남긴 장면
+            </h2>
             <span className="muted text-xs">숫자로 남은 이야기</span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -605,7 +635,12 @@ export default function DashboardClient({
       )}
       <section id="players" className="space-y-3">
         <div className="section-heading">
-          <h2>우리 네 명</h2>
+          <h2>
+            <span className="section-index" aria-hidden="true">
+              03
+            </span>
+            우리 네 명
+          </h2>
           <span className="muted text-xs">전체 기록 · 프로필과 도감</span>
         </div>
         <div className="player-grid">

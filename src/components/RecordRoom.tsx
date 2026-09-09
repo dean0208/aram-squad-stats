@@ -76,7 +76,12 @@ export default function RecordRoom({
       <div className="section-heading">
         <div>
           <p className="eyebrow">OUR HALL OF FAME</p>
-          <h2>우리 기록, 다음 주인은?</h2>
+          <h2>
+            <span className="section-index" aria-hidden="true">
+              04
+            </span>
+            우리 기록, 다음 주인은?
+          </h2>
         </div>
         <span className="pill">{selected.length}경기</span>
       </div>

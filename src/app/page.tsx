@@ -26,8 +26,10 @@ export default async function HomePage() {
     <div>
       <div className="site-intro">
         <div>
+          <span className="intro-label">
+            THE SQUAD JOURNAL <span>OCE / ARAM: MAYHEM</span>
+          </span>
           <h1>네 명이 남긴 나락 일지.</h1>
-          <p>OCE · 4인 ARAM: Mayhem</p>
         </div>
         <SyncButton />
       </div>
