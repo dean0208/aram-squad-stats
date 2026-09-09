@@ -28,7 +28,6 @@ export interface GameResult {
   cc_score: number
   perf_score: number
   augment_ids: number[]
-  item_ids?: number[]
   players: GameResultPlayer | null
 }
 

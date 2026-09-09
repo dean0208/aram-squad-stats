@@ -212,12 +212,6 @@ def normalize_game_detail(raw: dict) -> dict:
             if v and int(v) > 0:
                 augments.append(int(v))
 
-        item_ids = [
-            int(stats.get(f'item{i}', 0) or 0)
-            for i in range(6)
-            if int(stats.get(f'item{i}', 0) or 0) > 0
-        ]
-
         # LCU(구 match-history 포맷)는 totalTimeCrowdControlDealt 를 쓴다.
         # Riot Match-V5 의 totalTimeCCDealt 만 읽던 탓에 CC가 계속 0으로 저장됐다.
         cc_dealt = 0
@@ -269,7 +263,6 @@ def normalize_game_detail(raw: dict) -> dict:
             'goldEarned':                  int(stats.get('goldEarned', 0)),
             'totalTimeCCDealt':            cc_dealt,
             'augments':                    augments,
-            'itemIds':                     item_ids,
         })
 
     return {

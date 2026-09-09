@@ -37,7 +37,6 @@ interface LcuParticipant {
   goldEarned: number
   totalTimeCCDealt: number
   augments: number[]     // augment IDs (없으면 [])
-  itemIds?: number[]      // completed item IDs (없으면 [])
 }
 
 interface LcuGame {
@@ -213,9 +212,6 @@ export async function POST(request: NextRequest) {
             gold_earned: p.goldEarned,
             cc_score: p.totalTimeCCDealt,
             augment_ids: p.augments ?? [],
-            // 점수에는 아직 반영하지 않는다. 다만 원본이 사라지면 소급이
-            // 불가능하므로(cc_score 가 그랬다) 지금부터 남겨 둔다.
-            item_ids: p.itemIds ?? [],
             perf_score: Math.round((gameScores.get(p.puuid) ?? 0) * 10) / 10,
           }
         })

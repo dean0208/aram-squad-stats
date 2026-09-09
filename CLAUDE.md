@@ -77,11 +77,11 @@ curl -X POST https://aram4.vercel.app/api/recalculate-scores \
 Vercel에는 위 세 개와 `LCU_SYNC_SECRET`을 설정한다. `RIOT_ROUTING`/`RIOT_REGION`
 은 `config.ts`의 상수이며 환경변수로 읽지 않는다.
 
+아이템 데이터는 수집·전송·저장하지 않는다. `item_ids` 컬럼에 의존하는
+코드를 추가하거나 동기화 오류 해결을 위해 해당 컬럼을 생성하지 않는다.
+
 ## 알려진 미해결
 
-- **아이템은 저장만 하고 점수에 쓰지 않는다.** `item_ids` 는 두 경로 모두
-  기록한다. 빌드를 점수에 어떻게 넣을지 정하지 못해 미뤄 둔 상태고, 원본이
-  없으면 소급이 불가능하므로(아래 `cc_score` 가 그랬다) 수집만 먼저 해 둔다.
 - **홈은 여전히 조회한 전체 경기를 클라이언트로 직렬화한다.** Supabase 조회
   자체는 `GAMES_CACHE_TAG` 로 캐시되지만, 집계를 서버로 옮기지 않는 한 payload
   는 경기 수에 비례해 계속 커진다.

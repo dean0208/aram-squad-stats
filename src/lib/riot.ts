@@ -37,12 +37,6 @@ export interface RiotParticipant {
     enemyChampionImmobilizations?: number
   }
   goldEarned: number
-  item0?: number
-  item1?: number
-  item2?: number
-  item3?: number
-  item4?: number
-  item5?: number
   // Augment fields (ARAM 2024+)
   playerAugment1?: number
   playerAugment2?: number
@@ -172,11 +166,6 @@ function resolveSelfMitigated(p: RiotParticipant): number | undefined {
 function resolveHardCcCount(p: RiotParticipant): number | undefined {
   const value = p.challenges?.enemyChampionImmobilizations
   return typeof value === 'number' ? value : undefined
-}
-
-function extractItemIds(p: RiotParticipant): number[] {
-  return [p.item0, p.item1, p.item2, p.item3, p.item4, p.item5]
-    .filter((id): id is number => typeof id === 'number' && id > 0)
 }
 
 // ─── Main Sync Logic ──────────────────────────────────────────────────────────
@@ -333,7 +322,6 @@ export async function syncNewGames(): Promise<{ synced: number; skipped: number 
             // allParticipants 에서 이미 리졸버를 거친 값이다.
             cc_score: p.totalTimeCCDealt,
             augment_ids: extractAugmentIds(p),
-            item_ids: extractItemIds(p),
             perf_score: Math.round(perf * 10) / 10,
           }
         })
