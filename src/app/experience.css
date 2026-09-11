@@ -1021,7 +1021,7 @@ a {
 }
 .day-scoreboard strong {
   display: block;
-  font-family: var(--font-geist-sans), sans-serif;
+  font-family: var(--font-pretendard), sans-serif;
   line-height: 1;
   letter-spacing: -0.035em;
 }
@@ -1057,7 +1057,7 @@ a {
 .mini-score,
 .game-player-card .score,
 .game-stats-table .score {
-  font-family: var(--font-geist-sans), var(--font-pretendard), sans-serif;
+  font-family: var(--font-pretendard), sans-serif;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
   line-height: 1.2;
@@ -1455,7 +1455,7 @@ button.text-link {
 }
 .day-scoreboard strong {
   font-size: 76px;
-  font-weight: 550;
+  font-weight: 800;
 }
 .scoreboard-divider {
   font-size: 30px;
@@ -1475,7 +1475,7 @@ button.text-link {
 }
 .award-score {
   font-size: 52px;
-  font-weight: 550;
+  font-weight: 800;
 }
 .award-score small {
   font-size: 15px;
@@ -1579,7 +1579,7 @@ button.text-link {
 }
 .mini-score {
   font-size: 24px;
-  font-weight: 600;
+  font-weight: 750;
 }
 .profile-card {
   padding: 24px;
@@ -1594,7 +1594,7 @@ button.text-link {
 }
 .profile-score {
   font-size: 48px;
-  font-weight: 550;
+  font-weight: 800;
   margin: 20px 0 10px;
 }
 .profile-score small {
@@ -1621,7 +1621,7 @@ button.text-link {
 }
 .stat-number {
   font-size: 36px;
-  font-weight: 550;
+  font-weight: 800;
   color: #26364e;
 }
 .stat-number small {
@@ -1648,7 +1648,7 @@ button.text-link {
 }
 .moment-card > p.mt-2 strong {
   font-size: 26px;
-  font-weight: 600;
+  font-weight: 750;
 }
 .disclosure > summary {
   font-size: 17px;
@@ -1663,12 +1663,15 @@ button.text-link {
 }
 .game-stats-table .score {
   font-size: 28px;
+  font-weight: 800;
 }
 .game-player-card .score {
   font-size: 36px;
+  font-weight: 800;
 }
 .game-player-kda strong {
   font-size: 22px;
+  font-weight: 750;
 }
 .game-extra-stats,
 .game-extra-stats span {
@@ -1683,7 +1686,7 @@ button.text-link {
 }
 .player-stat-grid strong {
   font-size: 42px;
-  font-weight: 550;
+  font-weight: 800;
 }
 .player-stat-grid > div {
   padding: 20px;
@@ -1720,7 +1723,16 @@ button.text-link {
 }
 .atlas-stats strong {
   font-size: 24px;
-  font-weight: 650;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.day-scoreboard strong,
+.game-player-kda strong,
+.form-bars button > span:first-child {
+  font-variant-numeric: tabular-nums;
+}
+.form-bars button > span:first-child {
+  font-weight: 750;
 }
 .atlas-stats span {
   display: block;
