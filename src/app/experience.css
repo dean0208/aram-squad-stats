@@ -1648,9 +1648,87 @@ button.text-link {
 .moment-card h3 {
   font-size: 19px;
 }
-.moment-card > p.mt-2 strong {
-  font-size: 26px;
-  font-weight: 750;
+.moment-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 20px;
+}
+.moment-comparison > div {
+  padding: 16px 12px;
+  border: 1px solid #e2e8f2;
+  border-radius: 16px;
+  background: #f2f5fa;
+}
+.moment-comparison dt {
+  color: #596b83;
+  font-size: 14px;
+  font-weight: 600;
+}
+.moment-comparison dd {
+  margin-top: 8px;
+  color: #52637b;
+  font-size: 36px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  white-space: nowrap;
+}
+.moment-comparison dd span {
+  margin-left: 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.moment-comparison .moment-current {
+  border-color: #ccdbff;
+  background: #eaf1ff;
+}
+.moment-current dt,
+.moment-current dd {
+  color: #2c5bc9;
+}
+.moment-change {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #e7f5ee;
+  color: #23684e;
+  font-size: 14px;
+  font-weight: 600;
+}
+.moment-change strong {
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.moment-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+.moment-actions .button-secondary {
+  padding: 10px 6px;
+  font-size: 14px;
+  min-height: 44px;
+}
+.moment-actions .button-secondary:first-child {
+  color: #2d57c3;
+  background: #e8efff;
+  border-color: #dae5ff;
+}
+.moment-note {
+  margin-top: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.augment-highlight {
+  grid-column: 1 / -1;
 }
 .disclosure > summary {
   font-size: 17px;

@@ -501,7 +501,7 @@ export default function DashboardClient({
                 </p>
                 {bestGame && (
                   <Link href={gameHref(bestGame, date)} className="text-link">
-                    그 경기 →
+                    경기 상세 →
                   </Link>
                 )}
               </div>
@@ -574,7 +574,7 @@ export default function DashboardClient({
             <span className="section-index" aria-hidden="true">
               01
             </span>
-            이날의 경기
+            경기 기록
           </h2>
           <span className="pill">{filtered.length}경기 · 최신순</span>
         </div>
@@ -605,58 +605,80 @@ export default function DashboardClient({
         )}
       </section>
       {(moments.length > 0 || augment) && (
-        <section className="space-y-3">
+        <section id="highlights" className="space-y-3">
           <div className="section-heading">
             <h2>
               <span className="section-index" aria-hidden="true">
                 02
               </span>
-              이날 남긴 장면
+              매치 하이라이트
             </h2>
-            <span className="muted text-xs">숫자로 남은 이야기</span>
+            <span className="muted text-xs">최고 기록 · 기여도 상승</span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            {moments.slice(0, 4).map((moment) => (
-              <article className="surface moment-card" key={moment.id}>
-                <p className="eyebrow">
-                  {moment.label === '반등 성공' ? '🔥' : '✨'} {moment.label}
-                </p>
-                <h3>{getPlayerDisplayName(moment.puuid, moment.name)}</h3>
-                <p className="mt-2">
-                  <span className="muted">{Math.round(moment.previous)}</span> →{' '}
-                  <strong>
-                    {Math.round(moment.value)}
-                    {moment.label.includes('어시') ? '어시' : '점'}
-                  </strong>
-                </p>
-                <div className="flex gap-4 mt-3">
-                  <Link
-                    className="text-link"
-                    href={gameHref(moment.game, date)}
-                  >
-                    이 경기 →
-                  </Link>
-                  <Link
-                    className="text-link"
-                    href={gameHref(moment.previousGame, date)}
-                  >
-                    {moment.label === '반등 성공'
-                      ? '직전 경기'
-                      : '이전 최고 기록'}{' '}
-                    →
-                  </Link>
-                </div>
-                <p className="muted text-xs mt-2">
-                  조회한 기록 기준 · 이전 3경기 이상
-                </p>
-              </article>
-            ))}
+            {moments.slice(0, 4).map((moment) => {
+              const isBounce = moment.label === '반등 성공'
+              const isAssist = moment.label.includes('어시')
+              const unit = isAssist ? '개' : '점'
+              const previous = Math.round(moment.previous)
+              const current = Math.round(moment.value)
+              return (
+                <article className="surface moment-card" key={moment.id}>
+                  <p className="eyebrow">
+                    {isBounce ? '🔥 기여도 상승' : `✨ ${moment.label}`}
+                  </p>
+                  <h3>{getPlayerDisplayName(moment.puuid, moment.name)}</h3>
+                  <dl className="moment-comparison">
+                    <div>
+                      <dt>{isBounce ? '직전 경기' : '이전 최고 기록'}</dt>
+                      <dd>
+                        {previous}
+                        <span>{unit}</span>
+                      </dd>
+                    </div>
+                    <div className="moment-current">
+                      <dt>{isBounce ? '이번 경기' : '새 최고 기록'}</dt>
+                      <dd>
+                        {current}
+                        <span>{unit}</span>
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="moment-change">
+                    <span>
+                      {isBounce ? '직전 경기 대비' : '이전 최고 대비'}
+                    </span>
+                    <strong>
+                      +{current - previous}
+                      {unit}
+                    </strong>
+                  </p>
+                  <div className="moment-actions">
+                    <Link
+                      className="button-secondary"
+                      href={gameHref(moment.game, date)}
+                    >
+                      경기 상세 ↗
+                    </Link>
+                    <Link
+                      className="button-secondary"
+                      href={gameHref(moment.previousGame, date)}
+                    >
+                      {isBounce ? '직전 경기 보기' : '이전 기록 보기'}
+                    </Link>
+                  </div>
+                  <p className="moment-note muted">
+                    이전 3경기 이상 기록이 있는 선수 기준
+                  </p>
+                </article>
+              )
+            })}
             {augment && (
-              <article className="surface moment-card">
-                <p className="eyebrow">✦ 이날의 증강</p>
+              <article className="surface moment-card augment-highlight">
+                <p className="eyebrow">✦ 증강 하이라이트</p>
                 <h3>{getAugmentName(augment.id)}</h3>
                 <p className="muted text-sm mt-2">
-                  선택한 선수 기록 {augment.games}건 중 {augment.wins}승{' '}
+                  선수별 선택 {augment.games}회 · {augment.wins}승{' '}
                   {augment.games - augment.wins}패
                 </p>
                 <p className="muted text-xs mt-2">
@@ -673,9 +695,9 @@ export default function DashboardClient({
             <span className="section-index" aria-hidden="true">
               03
             </span>
-            우리 네 명
+            개인 기록
           </h2>
-          <span className="muted text-xs">전체 기록 · 프로필과 도감</span>
+          <span className="muted text-xs">플레이어별 전적 · 챔피언 분석</span>
         </div>
         <div className="player-grid">
           {players.map((player) => {

@@ -186,13 +186,13 @@ export default function PlayerProfile({
   return (
     <div className="space-y-6">
       <Link className="text-link" href={`${homeHref(returnDate)}#players`}>
-        ← 우리 네 명으로
+        ← 개인 기록 목록
       </Link>
       <header className="surface player-hero">
         <div className="player-identity">
           <PlayerAvatar puuid={player.puuid} name={name} size={64} />
           <div>
-            <p className="eyebrow">PLAYER JOURNAL</p>
+            <p className="eyebrow">PLAYER STATS</p>
             <h1>{name}</h1>
             <p className="muted text-sm mt-1">
               {nicknames[0]
@@ -227,7 +227,7 @@ export default function PlayerProfile({
       </header>
       <nav className="flex flex-wrap gap-4" aria-label="개인 기록 메뉴">
         <a className="text-link" href="#form">
-          최근 폼 ↓
+          최근 경기 ↓
         </a>
         <a className="text-link" href="#atlas">
           챔피언 도감 ↓
@@ -242,7 +242,7 @@ export default function PlayerProfile({
         <div className="section-heading">
           <div>
             <p className="eyebrow">RECENT FORM</p>
-            <h2>요즘 폼 어때?</h2>
+            <h2>최근 기여도 추이</h2>
           </div>
           <span className="pill">최근 {recent.length}경기</span>
         </div>
@@ -312,7 +312,7 @@ export default function PlayerProfile({
       </section>
       {recommendation && (
         <aside className="surface profile-section">
-          <p className="eyebrow">🎲 다음에 뽑히면 해볼까?</p>
+          <p className="eyebrow">🎲 추천 챔피언</p>
           <div className="flex gap-3 items-center">
             <ChampionAvatar
               name={recommendation.championId}
@@ -538,7 +538,7 @@ export default function PlayerProfile({
       </section>
       {suspects.length > 0 && (
         <section className="surface profile-section">
-          <h2>🔍 승률은 더 지켜보자</h2>
+          <h2>🔍 승률 체크</h2>
           <p className="muted text-sm mt-2">
             평균 기여도 50점 초과·승률 40% 미만·3경기 이상. 기여도와 승패가
             달랐던 픽이에요.
@@ -575,7 +575,7 @@ export default function PlayerProfile({
       )}
       {nicknames.length > 0 && (
         <section id="titles" className="surface profile-section">
-          <h2>🏛️ 지금 가진 타이틀</h2>
+          <h2>🏛️ 획득 타이틀</h2>
           <div className="medal-grid mt-4">
             {nicknames.map((n) => (
               <article className="soft-card" key={n.id}>

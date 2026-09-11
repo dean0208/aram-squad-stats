@@ -80,7 +80,7 @@ export default function RecordRoom({
             <span className="section-index" aria-hidden="true">
               04
             </span>
-            우리 기록, 다음 주인은?
+            기록 랭킹
           </h2>
         </div>
         <span className="pill">{selected.length}경기</span>

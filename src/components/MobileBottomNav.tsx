@@ -18,12 +18,12 @@ const items = [
   },
   {
     id: 'players',
-    label: '우리 넷',
+    label: '개인 기록',
     path: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M2 21v-3a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v3 M17 4a4 4 0 0 1 0 7 M19 14a5 5 0 0 1 3 4v3',
   },
   {
     id: 'records',
-    label: '기록',
+    label: '랭킹',
     path: 'M7 3h10v6a5 5 0 0 1-10 0Z M7 5H3v3a4 4 0 0 0 4 4 M17 5h4v3a4 4 0 0 1-4 4 M12 14v7 M7 21h10',
   },
 ]

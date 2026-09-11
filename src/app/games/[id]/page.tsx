@@ -71,7 +71,7 @@ export default async function GameDetailPage({
         </details>
       </header>
       <div className="section-heading">
-        <h2>우리 넷, 이번 판은?</h2>
+        <h2>플레이어별 기록</h2>
         <span className="pill">기여도 높은 순</span>
       </div>
       <section

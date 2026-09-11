@@ -26,13 +26,13 @@ export default async function HomePage() {
     <div>
       <div className="site-intro">
         <div className="intro-copy">
-          <h1>네 명이 남긴 나락 일지.</h1>
-          <p>잘한 판도, 망한 판도 우리 기록.</p>
+          <h1>칼바람 매치 리포트</h1>
+          <p>경기 결과와 개인 기록을 한눈에.</p>
         </div>
         <SyncButton />
       </div>
       <Suspense
-        fallback={<p className="empty-state">우리 기록을 펼치는 중…</p>}
+        fallback={<p className="empty-state">경기 기록을 불러오는 중…</p>}
       >
         <DashboardClient
           allGames={allGames}
